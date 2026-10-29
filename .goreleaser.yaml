@@ -1,0 +1,76 @@
+# GoReleaser: builds a release from a vX.Y.Z tag (see
+# .github/workflows/release.yml). Local check: make release-snapshot.
+version: 2
+project_name: tuntop
+
+builds:
+  - &build
+    id: tuntop
+    main: ./cmd/tuntop
+    binary: tuntop
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    # Same variables as the Makefile.
+    ldflags:
+      - -s -w
+      - -X github.com/anton2901/tuntop/internal/version.Version={{ .Version }}
+      - -X github.com/anton2901/tuntop/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/anton2901/tuntop/internal/version.Date={{ .Date }}
+  - <<: *build
+    id: tuntopd
+    main: ./cmd/tuntopd
+    binary: tuntopd
+
+archives:
+  # One archive per OS and arch with both binaries and that OS's installer:
+  # unpack, then sudo ./install.sh (Linux) or sudo ./install-macos.sh.
+  - ids: [tuntop, tuntopd]
+    formats: [tar.gz]
+    wrap_in_directory: true
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - src: '{{ if eq .Os "linux" }}scripts/install.sh{{ else }}scripts/install-macos.sh{{ end }}'
+        strip_parent: true
+      - src: '{{ if eq .Os "linux" }}scripts/uninstall.sh{{ else }}scripts/uninstall-macos.sh{{ end }}'
+        strip_parent: true
+      - src: '{{ if eq .Os "linux" }}packaging/systemd/*{{ else }}packaging/launchd/*{{ end }}'
+        strip_parent: true
+
+nfpms:
+  - ids: [tuntop, tuntopd]
+    package_name: tuntop
+    formats: [deb, rpm]
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: AV
+    homepage: https://github.com/anton2901/tuntop
+    maintainer: AV <15311030+anton2901@users.noreply.github.com>
+    description: |-
+      Terminal proxy/VPN client on Xray-core: subscriptions, system-wide
+      TUN, kill switch, latency tests; TUI and CLI.
+    license: GPL-3.0-or-later
+    section: net
+    bindir: /usr/bin
+    recommends: [nftables]
+    contents:
+      - src: packaging/systemd/tuntopd.service
+        dst: /usr/lib/systemd/system/tuntopd.service
+      - src: packaging/systemd/tuntop-notify.service
+        dst: /usr/lib/systemd/user/tuntop-notify.service
+    scripts:
+      postinstall: packaging/nfpm/postinstall.sh
+      preremove: packaging/nfpm/preremove.sh
+
+checksum:
+  name_template: checksums.txt
+
+# Release notes come from CHANGELOG.md (--release-notes in the workflow).
+changelog:
+  disable: true
+
+release:
+  draft: true # look it over on GitHub, then publish by hand

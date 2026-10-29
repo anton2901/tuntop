@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- tuntop service (root). Installed to /Library/LaunchDaemons by
+     scripts/install-macos.sh; the VPN starts off. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>org.tuntop.tuntopd</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/local/bin/tuntopd</string>
+		<string>run</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/var/log/tuntopd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/var/log/tuntopd.log</string>
+</dict>
+</plist>

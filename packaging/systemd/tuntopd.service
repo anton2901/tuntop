@@ -1,0 +1,19 @@
+[Unit]
+Description=tuntop proxy/VPN daemon
+Documentation=https://github.com/anton2901/tuntop
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tuntopd run
+Restart=on-failure
+RestartSec=3
+# /run/tuntop (control socket) and /var/lib/tuntop (state, 0700)
+RuntimeDirectory=tuntop
+RuntimeDirectoryMode=0755
+StateDirectory=tuntop
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

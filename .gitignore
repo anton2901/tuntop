@@ -1,0 +1,25 @@
+# Build output
+/bin/
+/dist/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Secrets and local settings
+.env
+.env.local
+.env.production
+*.pem
+*.key
+.claude/settings.local.json
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local working files
+/.local/

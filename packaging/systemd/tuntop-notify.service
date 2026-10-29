@@ -1,0 +1,13 @@
+[Unit]
+Description=tuntop desktop notifications
+Documentation=https://github.com/anton2901/tuntop
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/tuntop notify
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
