@@ -93,33 +93,58 @@ with your package manager.
 
 ## Using
 
+Everything is done in the terminal interface. Run:
+
 ```bash
-tuntop sub add https://provider.example/sub/…   # add a subscription
-tuntop servers                                  # list servers
-tuntop on 3                                     # connect (number or part of a name)
-tuntop status                                   # state, server, traffic
-tuntop off                                      # back to direct traffic
-tuntop killswitch on                            # block traffic outside the tunnel
-tuntop                                          # the TUI
+tuntop
 ```
 
-Other commands: `test`, `fav`/`unfav`, `sub rm`, `sub mv`, `update`, `add`
-(single links), `rm`, `notify`, `version`; `tuntop help` lists them.
+**First time:**
 
-In the TUI, `?` shows all keys. The main ones:
+1. Press `4` (subscriptions), then `a`, paste your provider's subscription
+   link (the one you would give Happ or v2rayN) and press `Enter`. Servers
+   appear on the servers tab (`3`).
+2. Pick a server with `↑↓` and press `Enter`: the status panel turns
+   **● ON** and all traffic goes through it.
+3. `o` turns the VPN off and on again (with the last server). Quitting
+   the interface (`q`) keeps the VPN as it is.
+
+**Every day:** `tuntop`, then `o`. Or turn on auto-connect in the
+settings and the VPN comes up by itself when the computer starts.
+
+**Keys** (`?` shows them all):
 
 | Key | Action |
 |-----|--------|
-| `↑↓` `Enter` | select, connect |
-| `o` | turn the VPN on (last server) or off |
-| `t` / `T` | latency of all servers / the one under the cursor |
-| `*` | favorite |
-| `/` | filter |
-| `3` `4` `5` | servers, subscriptions, log |
-| `a` `x` `Shift+↑↓` | add, remove, move a subscription |
-| `Esc` | menu: settings (language, theme, latency test, kill switch) |
+| `↑↓` `Enter` | select a server, connect |
+| `o` | VPN on (last server) or off |
+| `t` / `T` | measure latency: all servers / the one under the cursor |
+| `*` | favorite: listed first |
+| `/` | filter servers |
+| `i` | server details |
+| `3` `4` `5` | tabs: servers, subscriptions, log |
+| `a` `x` `Shift+↑↓` | subscriptions tab: add, remove, move |
+| `Esc` | menu: settings (language, theme, latency test, kill switch, auto-connect), help, about |
 
-`TUNTOP_LANG=en|ru` overrides the language, `TUNTOP_SOCKET` the socket path.
+The mouse works too: click to select, double-click to connect. Keys work
+in a Russian keyboard layout as well.
+
+**Command line (optional).** The same actions without the interface, for
+scripts, status bars or ssh sessions:
+
+```bash
+tuntop status                      # state, server, traffic
+tuntop on [server]                 # connect: number or part of a name
+tuntop off                         # back to direct traffic
+tuntop servers                     # list servers
+tuntop sub add <link>              # add a subscription
+tuntop killswitch on|off           # block traffic outside the tunnel
+tuntop autoconnect on|off          # connect when the service starts
+```
+
+`tuntop help` lists the rest: `test`, `fav`, `sub rm|mv`, `update`, `add`
+(single `vless://` links), `notify`, `version`. `TUNTOP_LANG=en|ru` sets
+the language.
 
 ## Privacy
 
