@@ -15,6 +15,7 @@ var ruCLI = map[string]string{
   servers              list servers of all subscriptions
   test [server]        measure latency (all servers by default)
   killswitch [on|off]  block traffic outside the tunnel while the VPN is on
+  autoconnect [on|off] connect to the last server when the service starts
   fav <server>         mark a server as favorite: it is listed first
   unfav <server>       unmark a favorite
   sub                  list subscriptions
@@ -39,6 +40,7 @@ var ruCLI = map[string]string{
   servers              серверы всех подписок
   test [сервер]        замер задержки (по умолчанию всех серверов)
   killswitch [on|off]  блокировать трафик мимо туннеля, пока VPN включён
+  autoconnect [on|off] при старте службы подключаться к последнему серверу
   fav <сервер>         добавить сервер в избранное: он будет в начале списка
   unfav <сервер>       убрать сервер из избранного
   sub                  подписки
@@ -101,13 +103,18 @@ var ruCLI = map[string]string{
 	"added %s: %d servers. See them with: tuntop servers\n":              "добавлена %s: серверов %d. Список: tuntop servers\n",
 
 	// notifications
-	"VPN on":                    "VPN включён",
-	"VPN off":                   "VPN выключен",
-	"Traffic goes directly":     "Трафик идёт напрямую",
-	"VPN did not connect":       "VPN не подключился",
-	"Subscription not updated":  "Подписка не обновилась",
-	"Subscription expires soon": "Подписка скоро закончится",
-	"%s: %d days left":          "%s: осталось дней: %d",
+	"VPN on":                          "VPN включён",
+	"VPN off":                         "VPN выключен",
+	"VPN server not answering":        "Сервер VPN не отвечает",
+	"VPN works again":                 "VPN снова работает",
+	"autoconnect: expected on or off": "autoconnect: укажите on или off",
+	"auto-connect: on; the service connects to the last server when it starts\n": "авто-подключение: включено; при старте служба подключается к последнему серверу\n",
+	"auto-connect: off; the VPN starts off\n":                                    "авто-подключение: выключено; при старте VPN выключен\n",
+	"Traffic goes directly":                                                      "Трафик идёт напрямую",
+	"VPN did not connect":                                                        "VPN не подключился",
+	"Subscription not updated":                                                   "Подписка не обновилась",
+	"Subscription expires soon":                                                  "Подписка скоро закончится",
+	"%s: %d days left":                                                           "%s: осталось дней: %d",
 }
 
 func init() {

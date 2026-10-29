@@ -40,7 +40,11 @@ var DefaultSocket = paths.Socket
 
 // Status is the daemon's current state.
 type Status struct {
-	Version   string    `json:"version"`
+	Version string `json:"version"`
+	// Build is the service's full version line (version, commit, date)
+	// and Xray the embedded Xray-core module version.
+	Build     string    `json:"build,omitempty"`
+	Xray      string    `json:"xray,omitempty"`
 	Connected bool      `json:"connected"`
 	Server    *Server   `json:"server,omitempty"`
 	Since     time.Time `json:"since,omitzero"`
@@ -94,6 +98,9 @@ const (
 	EventConnectFailed = "connect_failed"
 	EventUpdateFailed  = "update_failed"
 	EventExpiring      = "subscription_expiring"
+	// The running tunnel stopped answering, or answers again.
+	EventUnreachable = "server_unreachable"
+	EventRecovered   = "server_recovered"
 )
 
 // Event is something worth telling the user about (desktop notifications).
@@ -113,6 +120,8 @@ type Settings struct {
 	AutoTestMinutes int `json:"auto_test_minutes"`
 	// KillSwitch: while the VPN is on, block traffic outside the tunnel.
 	KillSwitch bool `json:"kill_switch"`
+	// AutoConnect: connect to the selected server when the service starts.
+	AutoConnect bool `json:"auto_connect"`
 }
 
 // Subscription is a source of servers.

@@ -118,6 +118,24 @@ func run(t *testing.T, f *fakeClient, lang i18n.Lang, args ...string) (string, i
 	return out.String(), code
 }
 
+func TestAutoConnectCommand(t *testing.T) {
+	f := newFake()
+	f.svc.KillSwitch = true
+	if out, code := run(t, f, i18n.RU, "autoconnect", "on"); code != 0 || !f.svc.AutoConnect || !f.svc.KillSwitch || !strings.Contains(out, "включено") {
+		t.Fatalf("autoconnect on: %d %q %+v", code, out, f.svc)
+	}
+	if _, code := run(t, f, i18n.EN, "autoconnect", "later"); code != 1 {
+		t.Fatal("bad argument accepted")
+	}
+	c := &CLI{T: i18n.T{Lang: i18n.RU}}
+	if title, body, urgent := c.describe(api.Event{Kind: api.EventUnreachable, Server: "NL", Error: "timeout"}); title != "Сервер VPN не отвечает" || body != "NL: timeout" || !urgent {
+		t.Fatalf("unreachable: %q %q %v", title, body, urgent)
+	}
+	if title, _, _ := c.describe(api.Event{Kind: api.EventRecovered, Server: "NL"}); title != "VPN снова работает" {
+		t.Fatalf("recovered: %q", title)
+	}
+}
+
 func TestKillSwitchCommand(t *testing.T) {
 	f := newFake()
 	f.svc.AutoTestMinutes = 30

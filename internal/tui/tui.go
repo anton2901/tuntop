@@ -70,6 +70,7 @@ const (
 	ovInfo
 	ovAddSub
 	ovConfirm
+	ovAbout
 )
 
 // refreshEvery is how often state is re-read from tuntopd; the traffic graph
@@ -308,7 +309,7 @@ func (m Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.keyAddSub(k)
 	case ovConfirm:
 		return m.keyConfirm(k)
-	case ovHelp, ovInfo:
+	case ovHelp, ovInfo, ovAbout:
 		m.overlay = ovNone
 		return m, nil
 	}

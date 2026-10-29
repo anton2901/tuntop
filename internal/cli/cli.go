@@ -61,6 +61,7 @@ const usage = `usage: tuntop [command]
   servers              list servers of all subscriptions
   test [server]        measure latency (all servers by default)
   killswitch [on|off]  block traffic outside the tunnel while the VPN is on
+  autoconnect [on|off] connect to the last server when the service starts
   fav <server>         mark a server as favorite: it is listed first
   unfav <server>       unmark a favorite
   sub                  list subscriptions
@@ -103,6 +104,8 @@ func (c *CLI) Run(ctx context.Context, args []string) int {
 		err = c.test(ctx, strings.Join(args, " "))
 	case "killswitch", "ks":
 		err = c.killSwitch(ctx, args)
+	case "autoconnect":
+		err = c.autoConnect(ctx, args)
 	case "fav", "unfav":
 		err = c.favorite(ctx, strings.Join(args, " "), cmd == "fav")
 	case "sub", "subs":
@@ -166,6 +169,32 @@ func (c *CLI) status(ctx context.Context) error {
 	}
 	if st.LastError != "" {
 		c.printf("error:   %s\n", st.LastError)
+	}
+	return nil
+}
+
+func (c *CLI) autoConnect(ctx context.Context, args []string) error {
+	s, err := c.C.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		switch args[0] {
+		case "on":
+			s.AutoConnect = true
+		case "off":
+			s.AutoConnect = false
+		default:
+			return errors.New(c.T.S("autoconnect: expected on or off"))
+		}
+		if s, err = c.C.SetSettings(ctx, s); err != nil {
+			return err
+		}
+	}
+	if s.AutoConnect {
+		c.printf("auto-connect: on; the service connects to the last server when it starts\n")
+	} else {
+		c.printf("auto-connect: off; the VPN starts off\n")
 	}
 	return nil
 }

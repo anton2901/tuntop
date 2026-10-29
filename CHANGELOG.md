@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-29
+
 ### Added
 
-- One-command install and update from GitHub releases:
-  `curl -fsSL …/scripts/get.sh | sh` (detects the system, verifies the
-  archive against `checksums.txt`, runs its installer).
+- The running tunnel is checked once a minute with a small request
+  through it: the status shows a fresh latency, a server that stops
+  answering (three failures in a row) and its recovery are notified, and
+  the tunnel restarts after the machine wakes from sleep.
+- Auto-connect (`tuntop autoconnect on`, TUI settings): the service
+  connects to the last server when it starts, retrying while the network
+  comes up. Off by default: the VPN still starts off.
+- "About" in the TUI menu: the interface's and the service's versions
+  (with a warning when they differ), the embedded Xray-core version,
+  license and home page. The status API reports the service build and
+  Xray-core version.
 
 ## [0.1.0] - 2026-10-29
 
@@ -48,5 +58,6 @@ First release. Linux (systemd) and macOS 13+ (Apple Silicon and Intel).
 - Installers and uninstallers for Linux (systemd units, geo databases
   downloaded when missing) and macOS (LaunchDaemon and LaunchAgent).
 
-[Unreleased]: https://github.com/anton2901/tuntop/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/anton2901/tuntop/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/anton2901/tuntop/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/anton2901/tuntop/releases/tag/v0.1.0

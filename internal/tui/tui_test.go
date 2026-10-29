@@ -17,6 +17,7 @@ import (
 	"github.com/anton2901/tuntop/internal/api"
 	"github.com/anton2901/tuntop/internal/i18n"
 	"github.com/anton2901/tuntop/internal/paths"
+	"github.com/anton2901/tuntop/internal/version"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -326,6 +327,32 @@ func TestRussianLayoutKeys(t *testing.T) {
 	m = run(t, m, key("3"), key("."), key("Г"))
 	if !m.filtering || m.filter.Value() != "Г" {
 		t.Fatalf("filtering %v, filter %q", m.filtering, m.filter.Value())
+	}
+}
+
+func TestAboutWindow(t *testing.T) {
+	f := newFake()
+	f.status = api.Status{Version: "9.9.9", Build: "9.9.9 (commit abc, built today)", Xray: "v1.260327.0"}
+	m := loaded(t, f)
+	m = run(t, m, key("esc"))
+	for i, l := range m.menuLabels() {
+		if l == "About" {
+			m.menuSel = i
+		}
+	}
+	m = run(t, m, key("enter"))
+	if m.overlay != ovAbout {
+		t.Fatalf("overlay = %v", m.overlay)
+	}
+	v := m.View()
+	for _, want := range []string{"tuntop " + version.Version, "9.9.9 (commit abc, built today)", "v1.260327.0", "GPL-3.0-or-later", "github.com/anton2901/tuntop", "differ"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("no %q in:\n%s", want, v)
+		}
+	}
+	m = run(t, m, key("x"))
+	if m.overlay != ovNone {
+		t.Fatal("any key does not close it")
 	}
 }
 

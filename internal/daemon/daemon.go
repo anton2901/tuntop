@@ -50,6 +50,10 @@ type ProxyStarter func(profile []byte) (proxyURL string, stop func() error, err 
 // Prober measures the delay of one request through a profile.
 type Prober func(ctx context.Context, profile []byte) (time.Duration, error)
 
+// TunnelChecker measures one request through the running tunnel (the
+// system's own routing), see RunHealth.
+type TunnelChecker func(ctx context.Context) (time.Duration, error)
+
 // KillSwitch blocks traffic outside the tunnel at the OS level. Its rules
 // outlive the process: a crash leaves the machine blocked, not leaking.
 type KillSwitch interface {
@@ -61,10 +65,12 @@ type KillSwitch interface {
 type Deps struct {
 	// KillSwitch is nil where the OS has none; the setting is refused.
 	KillSwitch KillSwitch
-	Tunnel     Tunnel
-	Fetch      Fetcher
-	Proxy      ProxyStarter
-	Probe      Prober
+	// Check, if set, watches the running tunnel (RunHealth).
+	Check  TunnelChecker
+	Tunnel Tunnel
+	Fetch  Fetcher
+	Proxy  ProxyStarter
+	Probe  Prober
 	// Log, if set, is served by the API (GET /v1/log).
 	Log *LogRing
 }
@@ -77,7 +83,12 @@ type Daemon struct {
 	proxy  ProxyStarter
 	probe  Prober
 	logs   *LogRing
-	ks     KillSwitch
+	check  TunnelChecker
+	// healthFails counts failed tunnel checks in a row.
+	healthFails int
+	// userOff: the user turned the VPN off since start; auto-connect stops.
+	userOff bool
+	ks      KillSwitch
 	// ksOn: the kill switch rules are in place.
 	ksOn bool
 
@@ -103,6 +114,14 @@ type Daemon struct {
 	lastUp, lastDown int64
 }
 
+// recordLatencyLocked adds a measurement (ms, -1 failed) to a server's
+// history.
+func (d *Daemon) recordLatencyLocked(key string, ms int) {
+	h := d.latency[key]
+	h = append(h, ms)
+	d.latency[key] = h[max(len(h)-latencyKeep, 0):]
+}
+
 // Sizes of the kept histories.
 const (
 	latencyKeep = 12
@@ -122,7 +141,7 @@ func New(st store.Store, deps Deps) (*Daemon, error) {
 		return nil, err
 	}
 	d := &Daemon{
-		store: st, tunnel: deps.Tunnel, ks: deps.KillSwitch, fetch: deps.Fetch, proxy: deps.Proxy, probe: deps.Probe, logs: deps.Log,
+		store: st, tunnel: deps.Tunnel, ks: deps.KillSwitch, check: deps.Check, fetch: deps.Fetch, proxy: deps.Proxy, probe: deps.Probe, logs: deps.Log,
 		st: s, parsed: map[string]*sub.Subscription{}, latency: map[string][]int{},
 		listeners: map[chan api.Event]struct{}{}, expiryNotified: map[string]string{},
 	}
@@ -148,7 +167,10 @@ func (d *Daemon) Status() api.Status {
 }
 
 func (d *Daemon) statusLocked() api.Status {
-	s := api.Status{Version: version.Version, LastError: d.lastErr, KillSwitch: d.ksOn}
+	s := api.Status{
+		Version: version.Version, Build: version.String(), Xray: xrayVersion,
+		LastError: d.lastErr, KillSwitch: d.ksOn,
+	}
 	servers := d.serversLocked()
 	find := func(key string) *api.Server {
 		for i := range servers {
@@ -399,6 +421,7 @@ func (d *Daemon) restartOnChange(sess Session) {
 func (d *Daemon) Disconnect() api.Status {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.userOff = true
 	if d.conn != nil {
 		d.disconnectLocked()
 		d.emitLocked(api.Event{Kind: api.EventDisconnected})
@@ -757,9 +780,7 @@ func (d *Daemon) Test(ctx context.Context, keys []string) ([]api.Server, error) 
 				ms = max(int(dur.Milliseconds()), 1)
 			}
 			d.mu.Lock()
-			h := d.latency[j.key]
-			h = append(h, ms)
-			d.latency[j.key] = h[max(len(h)-latencyKeep, 0):]
+			d.recordLatencyLocked(j.key, ms)
 			d.mu.Unlock()
 		}()
 	}
@@ -820,7 +841,7 @@ func (d *Daemon) RunTraffic(ctx context.Context) {
 func (d *Daemon) Settings() api.Settings {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch}
+	return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch, AutoConnect: d.st.AutoConnect}
 }
 
 // SetSettings validates and saves the service settings.
@@ -831,20 +852,21 @@ func (d *Daemon) SetSettings(s api.Settings) (api.Settings, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if s.KillSwitch && d.ks == nil {
-		return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes}, errors.New("kill switch is not supported on this system")
+		return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, AutoConnect: d.st.AutoConnect}, errors.New("kill switch is not supported on this system")
 	}
 	if s.AutoTestMinutes != d.st.AutoTestMinutes {
 		d.lastAutoTest = time.Now() // next run one full interval from now
 	}
 	d.st.AutoTestMinutes = s.AutoTestMinutes
 	d.st.KillSwitch = s.KillSwitch
+	d.st.AutoConnect = s.AutoConnect
 	switch {
 	case !s.KillSwitch:
 		d.killSwitchLocked(false)
 	case d.conn != nil:
 		d.killSwitchLocked(true)
 	}
-	return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch}, d.store.Save(d.st)
+	return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch, AutoConnect: d.st.AutoConnect}, d.store.Save(d.st)
 }
 
 // autoTestDue reports whether the periodic latency test should run.

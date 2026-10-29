@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -175,6 +176,26 @@ func Fetch(ctx context.Context, s store.Subscription, proxy string) (*sub.Subscr
 	return sub.Fetch(ctx, s.URL, opt)
 }
 
+// CheckTunnel implements TunnelChecker: one request with the system's
+// routing, which sends it into the tunnel while connected.
+func CheckTunnel(ctx context.Context) (time.Duration, error) {
+	client := &http.Client{Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, http.NoBody)
+	if err != nil {
+		return 0, err
+	}
+	start := time.Now()
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return 0, fmt.Errorf("check: HTTP %d", resp.StatusCode)
+	}
+	return time.Since(start), nil
+}
+
 // probeURL answers 204 quickly from anywhere; the usual connectivity check.
 const probeURL = "https://www.gstatic.com/generate_204"
 
@@ -236,3 +257,15 @@ func resolveServers(profile []byte) map[string][]string {
 	}
 	return hosts
 }
+
+// xrayVersion is the embedded Xray-core module version, for the status.
+var xrayVersion = func() string {
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, d := range bi.Deps {
+			if d.Path == "github.com/xtls/xray-core" {
+				return d.Version
+			}
+		}
+	}
+	return ""
+}()

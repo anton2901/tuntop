@@ -54,6 +54,7 @@ func runDaemon(args []string) error {
 	d, err := daemon.New(store.Store{Dir: *stateDir}, daemon.Deps{
 		Tunnel:     daemon.XrayTunnel{Net: nc, LogLevel: *logLevel},
 		KillSwitch: daemon.NetKillSwitch{Net: nc},
+		Check:      daemon.CheckTunnel,
 		Fetch:      daemon.Fetch,
 		Proxy:      daemon.StartSOCKS,
 		Probe:      daemon.Probe,
@@ -74,6 +75,8 @@ func runDaemon(args []string) error {
 	go d.RunUpdater(ctx)
 	go d.RunTraffic(ctx)
 	go d.RunAutoTest(ctx)
+	go d.RunHealth(ctx)
+	go d.RunAutoConnect(ctx)
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)

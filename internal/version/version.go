@@ -5,7 +5,7 @@
 // The single source of truth for the release version is the git tag
 // (vX.Y.Z). The Makefile and GoReleaser pass it via -ldflags:
 //
-//	-X tuntop/internal/version.Version=0.1.0
+//	-X github.com/anton2901/tuntop/internal/version.Version=0.1.0
 package version
 
 import "fmt"
@@ -16,6 +16,9 @@ var (
 	Commit  = "none"
 	Date    = "unknown"
 )
+
+// Homepage is where releases and the install script live.
+const Homepage = "https://github.com/anton2901/tuntop"
 
 // String returns a human-readable version line.
 func String() string {

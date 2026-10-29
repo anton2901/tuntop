@@ -37,6 +37,8 @@ type State struct {
 	Favorites []string `json:"favorites,omitempty"`
 	// KillSwitch blocks traffic outside the tunnel while the VPN is on.
 	KillSwitch bool `json:"kill_switch,omitempty"`
+	// AutoConnect: connect to the selected server when the service starts.
+	AutoConnect bool `json:"auto_connect,omitempty"`
 	// AutoTestMinutes: measure all servers' latency every N minutes; 0 off.
 	AutoTestMinutes int `json:"auto_test_minutes,omitempty"`
 }

@@ -25,6 +25,7 @@ const (
 	miAddSub
 	miSettings
 	miHelp
+	miAbout
 	miQuit
 )
 
@@ -35,7 +36,7 @@ func (m Model) menuLabels() []string {
 	}
 	return []string{
 		on, m.t.S("Update subscriptions"), m.t.S("Add subscription"),
-		m.t.S("Settings"), m.t.S("Help"), m.t.S("Quit"),
+		m.t.S("Settings"), m.t.S("Help"), m.t.S("About"), m.t.S("Quit"),
 	}
 }
 
@@ -94,6 +95,8 @@ func (m Model) activateMenu(it menuItem) (tea.Model, tea.Cmd) {
 		m.overlay, m.setSel = ovSettings, 0
 	case miHelp:
 		m.overlay = ovHelp
+	case miAbout:
+		m.overlay = ovAbout
 	case miQuit:
 		return m, tea.Quit
 	}
@@ -157,6 +160,10 @@ func (m Model) settings() []setting {
 		}},
 		{m.t.S("Kill switch"), onOff(m.svc.KillSwitch), func(m *Model, _ int) tea.Cmd {
 			m.svc.KillSwitch = !m.svc.KillSwitch
+			return m.saveService()
+		}},
+		{m.t.S("Auto-connect"), onOff(m.svc.AutoConnect), func(m *Model, _ int) tea.Cmd {
+			m.svc.AutoConnect = !m.svc.AutoConnect
 			return m.saveService()
 		}},
 		{m.t.S("Status panel"), shown(m.cfg.HideStatus), func(m *Model, _ int) tea.Cmd {
@@ -255,6 +262,46 @@ func fmtMinutes(t i18n.T, n int) string {
 }
 
 // --- help, info, dialogs
+
+// aboutLines shows what is installed: this interface, the service (they
+// can differ after a partial update) and the embedded Xray-core.
+func (m Model) aboutLines() []string {
+	th := m.th
+	w := min(m.width-4, 76)
+	row := func(label, value string) string {
+		return " " + th.dim().Render(fit(m.t.S(label), 10)) + " " + th.text().Render(value)
+	}
+	body := []string{
+		"",
+		" " + th.title().Render("tuntop "+version.Version) + th.dim().Render("  "+m.t.S("terminal VPN client on Xray-core")),
+		"",
+		row("Interface", version.String()),
+	}
+	svc := m.status.Build
+	if !m.connected || svc == "" {
+		svc = m.t.S("not reachable")
+	}
+	body = append(body, row("Service", svc))
+	if m.connected && m.status.Version != "" && m.status.Version != version.Version {
+		body = append(body, " "+th.err().Render(m.t.S("The interface and the service differ: reinstall tuntop.")))
+	}
+	if m.status.Xray != "" {
+		body = append(body, row("Xray-core", m.status.Xray))
+	}
+	body = append(body,
+		row("License", "GPL-3.0-or-later"),
+		row("Home", version.Homepage),
+		"",
+		" "+th.dim().Render(m.t.S("Update: run the install command from the site again.")),
+		"",
+	)
+	return boxSpec{
+		w: w, h: len(body) + 2, color: th.BoxMain,
+		tabs:  []tabLabel{{text: m.t.S("About"), active: true}},
+		hints: []hint{{m.t.S("any key"), m.t.S("back")}},
+		body:  body,
+	}.render(th)
+}
 
 func (m Model) helpLines() []string {
 	th := m.th
@@ -382,6 +429,8 @@ func (m Model) overlayLines() []string {
 		return m.settingsLines()
 	case ovHelp:
 		return m.helpLines()
+	case ovAbout:
+		return m.aboutLines()
 	case ovInfo:
 		return m.infoLines()
 	case ovAddSub:

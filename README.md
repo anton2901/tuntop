@@ -25,6 +25,9 @@ kill switch, in a btop-style interface that fits 80×24.
   on Linux, pf on macOS.
 - **Latency tests** (manual or every 10 min – 6 h) with a short history per
   server; **favorites** listed first; **subscription order** of your choice.
+- **Tunnel health:** a check through the tunnel every minute keeps the
+  status latency fresh, notifies when the server stops answering, and
+  reconnects after sleep. Optional **auto-connect** at start.
 - **Live traffic** graph and totals, service log, desktop notifications.
 - **TUI and CLI** over the same service: closing the TUI leaves the VPN as
   it is. English and Russian, five themes, mouse support.
