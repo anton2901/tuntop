@@ -68,9 +68,8 @@ nfpms:
 checksum:
   name_template: checksums.txt
 
-# Release notes come from CHANGELOG.md (--release-notes in the workflow).
-changelog:
-  disable: true
+# Release notes come from CHANGELOG.md (--release-notes in the workflow);
+# "changelog: disable" would drop them too.
 
 release:
   draft: true # look it over on GitHub, then publish by hand
