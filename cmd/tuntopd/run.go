@@ -54,6 +54,13 @@ func runDaemon(args []string) error {
 		log.Print("geo databases not found; profiles with geoip:/geosite: rules will fail")
 	}
 
+	// Before Recover: a second instance must not undo the first one's rules.
+	unlock, err := daemon.Lock(*stateDir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	nc := netcfg.Default
 	nc.StateDir = *stateDir
 	// A crash may have left the system DNS pointed at the dead tunnel.
