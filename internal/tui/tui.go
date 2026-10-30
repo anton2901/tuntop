@@ -398,18 +398,28 @@ func (m Model) keyServers(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.filter.Focus()
 	case "enter":
 		return m, m.connectCursor()
+	case "z", "left":
+		fold := true
+		m.toggleFold(false, &fold)
+	case "right":
+		fold := false
+		m.toggleFold(false, &fold)
+	case "Z":
+		m.toggleFold(true, nil)
+	case "s":
+		m.cycleSort()
 	case "i":
-		if m.cursor < len(vis) {
+		if m.cursor < len(vis) && !m.foldedAtCursor() {
 			m.overlay = ovInfo
 		}
 	case "t":
 		return m, m.test(nil)
 	case "T":
-		if m.cursor < len(vis) {
+		if m.cursor < len(vis) && !m.foldedAtCursor() {
 			return m, m.test([]string{vis[m.cursor].Key})
 		}
 	case "*":
-		if m.cursor < len(vis) {
+		if m.cursor < len(vis) && !m.foldedAtCursor() {
 			return m, m.favorite(vis[m.cursor])
 		}
 	default:
@@ -552,6 +562,12 @@ func (m *Model) connectCursor() tea.Cmd {
 	if m.cursor >= len(vis) {
 		return nil
 	}
+	if m.foldedAtCursor() {
+		// A collapsed group's row opens the group instead.
+		fold := false
+		m.toggleFold(false, &fold)
+		return nil
+	}
 	return m.connect(vis[m.cursor].Key)
 }
 
@@ -616,7 +632,7 @@ func (m *Model) test(keys []string) tea.Cmd {
 func (m Model) visibleServers() []api.Server {
 	q := strings.ToLower(strings.TrimSpace(m.filter.Value()))
 	if q == "" {
-		return m.servers
+		return m.arrange(m.servers)
 	}
 	var out []api.Server
 	for _, s := range m.servers {
@@ -624,7 +640,7 @@ func (m Model) visibleServers() []api.Server {
 			out = append(out, s)
 		}
 	}
-	return out
+	return m.arrange(out)
 }
 
 // clamp keeps cursors in range and the server cursor on screen.
@@ -650,6 +666,10 @@ func (m *Model) clamp() {
 type row struct {
 	header string
 	server int // index into the visible servers; -1 for headers
+	// folded rows stand for a collapsed group: server is its first server
+	// and count how many the group has.
+	folded bool
+	count  int
 }
 
 // serverRows groups servers under headers: favorites, then subscriptions.
@@ -657,12 +677,16 @@ func (m Model) serverRows(vis []api.Server) []row {
 	var rows []row
 	last := "\x00"
 	for i, s := range vis {
-		group, title := s.SubID, s.SubName
+		group, title := groupKey(s), s.SubName
 		if s.Favorite {
-			group, title = "\x01", m.t.S("★ Favorites")
+			title = m.t.S("★ Favorites")
 		}
 		if group != last {
 			last = group
+			if m.folding() && m.isFolded(group) {
+				rows = append(rows, row{header: title, server: i, folded: true, count: m.groupSize(group)})
+				continue
+			}
 			rows = append(rows, row{header: title, server: -1})
 		}
 		rows = append(rows, row{server: i})

@@ -679,3 +679,47 @@ func TestEveryWidthRenders(t *testing.T) {
 		}
 	}
 }
+
+func TestFoldGroup(t *testing.T) {
+	f := newFake()
+	m := loaded(t, f)
+	m = run(t, m, key("z"))
+	if n := len(m.visibleServers()); n != 2 {
+		t.Fatalf("visible after fold = %d, want 2", n)
+	}
+	if v := m.View(); !strings.Contains(v, "▸ Provider A") || strings.Contains(v, "Germany") {
+		t.Fatalf("folded view:\n%s", v)
+	}
+	// Enter on the folded row opens the group instead of connecting.
+	m = run(t, m, key("enter"))
+	if len(f.connected) != 0 || len(m.visibleServers()) != 3 {
+		t.Fatalf("enter on folded row: connected %v, visible %d", f.connected, len(m.visibleServers()))
+	}
+	// Z folds everything, a second Z opens everything.
+	m = run(t, m, key("Z"))
+	if len(m.visibleServers()) != 2 {
+		t.Fatalf("Z: visible = %d, want 2", len(m.visibleServers()))
+	}
+	m = run(t, m, key("Z"))
+	if len(m.visibleServers()) != 3 {
+		t.Fatalf("second Z: visible = %d, want 3", len(m.visibleServers()))
+	}
+}
+
+func TestSortKeepsCursorServer(t *testing.T) {
+	m := loaded(t, newFake())
+	m = run(t, m, key("down")) // Germany
+	m = run(t, m, key("s"))    // by latency: failed last
+	vis := m.visibleServers()
+	if vis[0].Key != "a:1" || vis[m.cursor].Key != "a:2" {
+		t.Fatalf("latency sort: %v, cursor on %s", vis, vis[m.cursor].Key)
+	}
+	m = run(t, m, key("s")) // by name
+	if vis = m.visibleServers(); vis[0].Key != "a:2" || vis[m.cursor].Key != "a:2" {
+		t.Fatalf("name sort: first %s, cursor on %s", vis[0].Key, vis[m.cursor].Key)
+	}
+	m = run(t, m, key("s")) // back to the subscription order
+	if m.visibleServers()[0].Key != "a:1" || m.cfg.Sort != sortOrder {
+		t.Fatal("third s did not restore the order")
+	}
+}

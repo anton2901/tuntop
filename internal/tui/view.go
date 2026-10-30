@@ -235,6 +235,8 @@ func (m Model) mainBox(lay screen) boxSpec {
 			{"/", m.t.S("filter")},
 			{"i", m.t.S("info")},
 			{"*", m.t.S("favorite")},
+			{"s", m.t.S("sort")},
+			{"z", m.t.S("fold")},
 		}
 		if n := len(m.visibleServers()); n > 0 {
 			b.bottomRght = th.dim().Render(fmt.Sprintf("%d/%d", m.cursor+1, n))
@@ -306,9 +308,24 @@ func (m Model) serversBody(lay screen, in int) []string {
 			out = append(out, " "+th.fg(th.BoxTraffic).Bold(true).Render(r.header))
 			continue
 		}
+		if r.folded {
+			out = append(out, m.foldedLine(r, r.server == m.cursor, in))
+			continue
+		}
 		out = append(out, m.serverLine(vis[r.server], cols, r.server == m.cursor, cur, sel, in))
 	}
 	return out
+}
+
+// foldedLine is the row of a collapsed group.
+func (m Model) foldedLine(r row, atCursor bool, in int) string {
+	th := m.th
+	text := "▸ " + r.header
+	count := m.t.F("%d servers", r.count)
+	if atCursor {
+		return th.sel().Render(fit(" "+text+"  "+count, in))
+	}
+	return " " + th.fg(th.BoxTraffic).Bold(true).Render(text) + th.dim().Render("  "+count)
 }
 
 type columns struct{ name, kind, spark, lat int }

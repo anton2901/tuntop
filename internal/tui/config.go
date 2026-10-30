@@ -18,6 +18,10 @@ type Config struct {
 	// HideStatus and HideTraffic collapse the top panels (keys 1 and 2).
 	HideStatus  bool `json:"hide_status,omitempty"`
 	HideTraffic bool `json:"hide_traffic,omitempty"`
+	// Sort orders servers inside groups ("", "latency", "name"); Folded
+	// lists the collapsed groups (subscription IDs, "\x01" for favorites).
+	Sort   string   `json:"sort,omitempty"`
+	Folded []string `json:"folded,omitempty"`
 }
 
 // ConfigPath returns where the TUI config is stored.

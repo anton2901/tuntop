@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- TUI: collapse server groups (`z`, `Z` for all, `Enter` on a collapsed row
+  opens it) and sort servers inside groups (`s`: subscription order, latency,
+  name); both are remembered. Terminal title shows the connected server.
 - Log file `/var/log/tuntop/tuntopd.log` (5 MB x 4, rotated) with
   timestamps; share links, subscription URL paths, UUIDs, keys and public
   IP addresses are masked (an address keeps two parts and a short hash).
