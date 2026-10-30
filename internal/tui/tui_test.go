@@ -642,3 +642,29 @@ func TestAutoTestSetting(t *testing.T) {
 		t.Fatalf("settings view:\n%s", m.View())
 	}
 }
+
+// No terminal size may panic, and the main view stays exact where it is
+// drawn at all (overlays are checked at fixed sizes in TestExactGeometry).
+func TestEveryWidthRenders(t *testing.T) {
+	f := newFake()
+	f.status = api.Status{Connected: true, Server: &f.servers[0], Since: time.Now(), Selected: &f.servers[0]}
+	m := New(f, i18n.EN, Config{})
+	m = run(t, m, m.refresh()())
+	for w := 20; w <= 120; w++ {
+		for _, h := range []int{5, 15, 18, 24, 40} {
+			m = run(t, m, tea.WindowSizeMsg{Width: w, Height: h})
+			lines := strings.Split(m.View(), "\n")
+			if w < 33 || h < 15 {
+				continue
+			}
+			if len(lines) != h {
+				t.Fatalf("%dx%d: %d lines", w, h, len(lines))
+			}
+			for i, l := range lines {
+				if got := lipgloss.Width(l); got != w {
+					t.Fatalf("%dx%d line %d: width %d", w, h, i, got)
+				}
+			}
+		}
+	}
+}

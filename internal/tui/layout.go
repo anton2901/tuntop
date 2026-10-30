@@ -11,6 +11,10 @@ const topHeight = 7
 // panels; below it the server list gets the whole screen.
 const minTopScreen = 18
 
+// minTrafficW is the narrowest traffic panel worth drawing; below it the
+// status panel takes the whole row.
+const minTrafficW = 24
+
 // screen is the geometry of the main view, shared by View and the mouse
 // handler so clicks map to what was drawn.
 type screen struct {
@@ -31,6 +35,9 @@ func (m Model) layout() screen {
 		case showStatus && showTraffic:
 			s.statusW = max(m.width*45/100, 30)
 			s.trafficW = m.width - s.statusW
+			if s.trafficW < minTrafficW {
+				s.statusW, s.trafficW = m.width, 0
+			}
 		case showStatus:
 			s.statusW = m.width
 		default:

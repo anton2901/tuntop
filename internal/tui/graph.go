@@ -22,6 +22,7 @@ const minScale = 64 << 10
 // growing down), one column per second, newest on the right, both on the
 // same scale. It returns 4 lines of width w and the scale used.
 func netGraph(th Theme, down, up []int64, w int) ([]string, int64) {
+	w = max(w, 0)
 	down, up = tail(down, w), tail(up, w)
 	scale := int64(minScale)
 	for i := range down {
