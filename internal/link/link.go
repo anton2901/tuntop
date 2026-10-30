@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/anton2901/tuntop/internal/safe"
 	"github.com/anton2901/tuntop/internal/xray"
 )
 
@@ -31,7 +32,13 @@ func Parse(raw string) (Profile, error) {
 	if !ok {
 		return Profile{}, errors.New("not a link: missing scheme")
 	}
-	switch strings.ToLower(scheme) {
+	p, err := parseScheme(strings.ToLower(scheme), raw)
+	p.Name = safe.Text(p.Name)
+	return p, err
+}
+
+func parseScheme(scheme, raw string) (Profile, error) {
+	switch scheme {
 	case "vless":
 		return parseVLESS(raw)
 	case "vmess":

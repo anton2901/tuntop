@@ -19,6 +19,7 @@ import (
 
 	"github.com/anton2901/tuntop/internal/api"
 	"github.com/anton2901/tuntop/internal/link"
+	"github.com/anton2901/tuntop/internal/safe"
 	"github.com/anton2901/tuntop/internal/store"
 	"github.com/anton2901/tuntop/internal/sub"
 	"github.com/anton2901/tuntop/internal/version"
@@ -401,7 +402,7 @@ func (d *Daemon) connect(q string, allowed func() bool) (api.Status, error) {
 	sess, err := d.startLocked(profile)
 	if err != nil {
 		log.Printf("connect failed after %s: %s: %v", time.Since(t0).Round(time.Millisecond), e.Name, err)
-		d.lastErr = err.Error()
+		d.lastErr = safe.Text(err.Error())
 		d.emitLocked(api.Event{Kind: api.EventConnectFailed, Server: e.Name, Error: err.Error()})
 		return d.statusLocked(), fmt.Errorf("connect: %w", err)
 	}
@@ -754,7 +755,7 @@ func (d *Daemon) Update(ctx context.Context, id string) ([]api.Subscription, err
 		cur := &d.st.Subscriptions[i]
 		if err != nil {
 			log.Printf("update subscription %s: %v", sb.ID, err)
-			cur.LastError = err.Error()
+			cur.LastError = safe.Text(err.Error())
 			errs = append(errs, fmt.Errorf("%s: %w", cur.Name(), err))
 		} else if err := d.store.SaveBody(sb.ID, parsed.Body); err != nil {
 			errs = append(errs, err)

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/anton2901/tuntop/internal/xray"
@@ -211,5 +212,15 @@ func TestParseHysteria2(t *testing.T) {
 	}
 	if _, err := Parse("hysteria2://a@h.example.com:1?obfs=other"); !errors.Is(err, ErrUnsupported) {
 		t.Errorf("obfs: err = %v", err)
+	}
+}
+
+func TestNameIsCleaned(t *testing.T) {
+	p, err := Parse("vless://11111111-1111-1111-1111-111111111111@h.example.com:443?security=none#evil%1B%5D52%3Bc%3BZXZpbA%3D%3D%07name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(p.Name, "\x1b\x07") {
+		t.Fatalf("control characters in %q", p.Name)
 	}
 }

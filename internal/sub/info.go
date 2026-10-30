@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/anton2901/tuntop/internal/safe"
 )
 
 // Info is provider metadata sent in subscription response headers (the
@@ -30,7 +32,7 @@ func ParseInfo(h http.Header) Info {
 		return Info{}
 	}
 	i := Info{
-		Title:      decodeHeader(h.Get("Profile-Title")),
+		Title:      safe.Text(decodeHeader(h.Get("Profile-Title"))),
 		SupportURL: h.Get("Support-Url"),
 		WebPageURL: h.Get("Profile-Web-Page-Url"),
 		Announce:   decodeHeader(h.Get("Announce")),
@@ -68,8 +70,8 @@ func decodeHeader(v string) string {
 	v = strings.TrimSpace(v)
 	if rest, ok := strings.CutPrefix(v, "base64:"); ok {
 		if b, err := decodeBase64(rest); err == nil {
-			return strings.TrimSpace(string(b))
+			return safe.Multiline(strings.TrimSpace(string(b)))
 		}
 	}
-	return v
+	return safe.Multiline(v)
 }

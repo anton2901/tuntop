@@ -261,3 +261,16 @@ func TestDuplicateEntriesGetUniqueKeys(t *testing.T) {
 		t.Fatalf("keys = %q, %q", s.Entries[0].Key, s.Entries[1].Key)
 	}
 }
+
+func TestProviderTextIsCleaned(t *testing.T) {
+	h := http.Header{}
+	h.Set("Profile-Title", "Pro\x1b[2Jvider")
+	h.Set("Announce", "line one\nline \x1b]52;c;x\x07two")
+	i := ParseInfo(h)
+	if strings.Contains(i.Title, "\x1b") || strings.Contains(i.Announce, "\x1b") || strings.Contains(i.Announce, "\x07") {
+		t.Fatalf("escapes survive: %+v", i)
+	}
+	if !strings.Contains(i.Announce, "\n") {
+		t.Fatalf("announce lost its line break: %q", i.Announce)
+	}
+}

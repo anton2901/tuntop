@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/anton2901/tuntop/internal/link"
+	"github.com/anton2901/tuntop/internal/safe"
 	"github.com/anton2901/tuntop/internal/xray"
 )
 
@@ -283,7 +284,7 @@ func (s *Subscription) parseXrayJSON(body []byte) error {
 			s.Skipped = append(s.Skipped, Skipped{fmt.Sprintf("#%d", i+1), "invalid JSON: " + err.Error()})
 			continue
 		}
-		name := strings.TrimSpace(p.Remarks)
+		name := safe.Text(strings.TrimSpace(p.Remarks))
 		if name == "" {
 			name = fmt.Sprintf("Profile %d", i+1)
 		}
