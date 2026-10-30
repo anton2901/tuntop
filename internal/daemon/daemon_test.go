@@ -608,3 +608,30 @@ func TestDisconnectEndsWatcher(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// Removing the subscription of the running server turns the VPN off, and
+// the traffic totals of a finished session do not linger.
+func TestRemoveActiveSubscriptionDisconnects(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	s, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.client.Connect(ctx, "NL"); err != nil {
+		t.Fatal(err)
+	}
+	e.d.sampleTraffic()
+	if tr := e.d.Traffic(); tr.UpTotal == 0 {
+		t.Fatal("no traffic counted")
+	}
+	if err := e.client.RemoveSubscription(ctx, s.ID); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := e.client.Status(ctx); st.Connected {
+		t.Fatal("still connected through a removed subscription")
+	}
+	if tr := e.d.Traffic(); tr.UpTotal != 0 || tr.DownTotal != 0 {
+		t.Fatalf("totals after off: %+v", tr)
+	}
+}

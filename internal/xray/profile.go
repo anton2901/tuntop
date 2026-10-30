@@ -97,12 +97,22 @@ func SetupAssets() string {
 		dirs = append([]string{filepath.Dir(exe)}, dirs...)
 	}
 	for _, d := range dirs {
-		if _, err := os.Stat(filepath.Join(d, "geoip.dat")); err == nil {
+		if hasGeoData(d) {
 			_ = os.Setenv("XRAY_LOCATION_ASSET", d)
 			return d
 		}
 	}
 	return ""
+}
+
+// hasGeoData reports whether dir holds both geo databases.
+func hasGeoData(dir string) bool {
+	for _, f := range []string{"geoip.dat", "geosite.dat"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // enableStats turns on Xray's traffic counters, read with

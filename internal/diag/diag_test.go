@@ -88,6 +88,10 @@ func TestTail(t *testing.T) {
 	if got := strings.Join(Tail(p, 3), ","); got != "2,3,4" {
 		t.Fatalf("got %q", got)
 	}
+	_ = os.WriteFile(p+".2", []byte("0\n"), 0o644)
+	if got := strings.Join(Tail(p, 9), ","); got != "0,1,2,3,4" {
+		t.Fatalf("with .2: %q", got)
+	}
 	if Tail(filepath.Join(t.TempDir(), "none"), 5) != nil {
 		t.Fatal("missing file must give no lines")
 	}

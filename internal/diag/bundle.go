@@ -63,11 +63,18 @@ func RunCommands(ctx context.Context, w io.Writer, cmds []Command) {
 	}
 }
 
+// maxRotated bounds the numbered predecessors Tail looks for.
+const maxRotated = 9
+
 // Tail returns the last n lines of the log at path and its rotated
-// predecessor path.1, oldest first.
+// predecessors path.1, path.2, …, oldest first.
 func Tail(path string, n int) []string {
 	var lines []string
-	for _, p := range []string{path + ".1", path} {
+	files := []string{path}
+	for i := 1; i <= maxRotated; i++ {
+		files = append([]string{fmt.Sprintf("%s.%d", path, i)}, files...)
+	}
+	for _, p := range files {
 		if b, err := os.ReadFile(p); err == nil {
 			lines = append(lines, strings.Split(strings.TrimRight(string(b), "\n"), "\n")...)
 		}

@@ -563,6 +563,7 @@ func (d *Daemon) disconnectLocked() {
 	}
 	close(d.conn.ended)
 	d.conn = nil
+	d.lastUp, d.lastDown = 0, 0 // the totals belong to the session
 	log.Print("disconnected")
 }
 
@@ -687,8 +688,21 @@ func (d *Daemon) RemoveSubscription(id string) error {
 	if i < 0 {
 		return fmt.Errorf("no subscription %q", id)
 	}
+	if d.conn != nil && strings.HasPrefix(d.conn.key, id+":") {
+		// The server in use goes away with its subscription.
+		d.userOff = true
+		d.offs++
+		d.disconnectLocked()
+		d.emitLocked(api.Event{Kind: api.EventDisconnected})
+		d.killSwitchLocked(false)
+	}
 	d.st.Subscriptions = append(d.st.Subscriptions[:i], d.st.Subscriptions[i+1:]...)
 	delete(d.parsed, id)
+	for k := range d.latency {
+		if strings.HasPrefix(k, id+":") {
+			delete(d.latency, k)
+		}
+	}
 	if strings.HasPrefix(d.st.Selected, id+":") {
 		d.st.Selected = ""
 	}

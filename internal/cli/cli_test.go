@@ -389,3 +389,14 @@ func TestDebugBundle(t *testing.T) {
 		t.Errorf("mode %v", st.Mode())
 	}
 }
+
+func TestAddFromStdinLongLine(t *testing.T) {
+	for size, wantCode := range map[int]int{200 << 10: 0, 5 << 20: 1} {
+		var out bytes.Buffer
+		in := strings.NewReader("vless://" + strings.Repeat("a", size) + "\n")
+		c := &CLI{C: newFake(), T: i18n.T{Lang: i18n.EN}, In: in, Out: &out, Err: &out}
+		if code := c.Run(context.Background(), []string{"add", "-"}); code != wantCode {
+			t.Errorf("%d-byte line: code %d, output %q", size, code, out.String())
+		}
+	}
+}

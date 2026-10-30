@@ -132,28 +132,34 @@ func (s *xraySession) Traffic() (up, down int64) { return s.ch.up.Load(), s.ch.d
 // StartSOCKS implements ProxyStarter with a SOCKS inbound on a free
 // loopback port.
 func StartSOCKS(profile []byte) (string, func() error, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", nil, err
-	}
-	port := uint16(l.Addr().(*net.TCPAddr).Port)
-	_ = l.Close()
 	// Like the tunnel's own sockets: bypass the TUN when connected. If no
 	// bypass is possible (another VPN on macOS), probe through it anyway.
 	if bypass, berr := netcfg.Bypass(netcfg.Default); berr == nil {
+		var err error
 		if profile, err = xray.WithBypass(profile, bypass); err != nil {
 			return "", nil, err
 		}
 	}
-	cfg, err := xray.WithSOCKS(profile, "127.0.0.1", port, "none")
-	if err != nil {
-		return "", nil, err
+	// The port is free when picked, but may be taken before Xray binds it.
+	var lastErr error
+	for range 3 {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return "", nil, err
+		}
+		port := uint16(l.Addr().(*net.TCPAddr).Port)
+		_ = l.Close()
+		cfg, err := xray.WithSOCKS(profile, "127.0.0.1", port, "none")
+		if err != nil {
+			return "", nil, err
+		}
+		inst, err := xray.StartJSON(cfg)
+		if err == nil {
+			return fmt.Sprintf("socks5h://127.0.0.1:%d", port), inst.Close, nil
+		}
+		lastErr = err
 	}
-	inst, err := xray.StartJSON(cfg)
-	if err != nil {
-		return "", nil, err
-	}
-	return fmt.Sprintf("socks5h://127.0.0.1:%d", port), inst.Close, nil
+	return "", nil, lastErr
 }
 
 // fetchTimeout bounds one download attempt; a blocked domain otherwise

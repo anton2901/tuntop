@@ -584,8 +584,12 @@ func (c *CLI) addLinks(ctx context.Context, args []string) error {
 	if len(args) == 1 && args[0] == "-" {
 		args = nil
 		sc := bufio.NewScanner(c.In)
+		sc.Buffer(make([]byte, 0, 64<<10), 4<<20) // long links, JSON-sized lines
 		for sc.Scan() {
 			args = append(args, sc.Text())
+		}
+		if err := sc.Err(); err != nil {
+			return fmt.Errorf("add: reading stdin: %w", err)
 		}
 	}
 	if len(args) == 0 {
