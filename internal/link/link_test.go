@@ -224,3 +224,19 @@ func TestNameIsCleaned(t *testing.T) {
 		t.Fatalf("control characters in %q", p.Name)
 	}
 }
+
+// Xray refuses allowInsecure, so a link carrying it must still build.
+func TestAllowInsecureIsIgnored(t *testing.T) {
+	for _, l := range []string{
+		"vless://11111111-1111-1111-1111-111111111111@h.example.com:443?security=tls&sni=h.example.com&allowInsecure=1#x",
+		"trojan://pass@h.example.com:443?security=tls&sni=h.example.com&allowInsecure=true#x",
+	} {
+		p, err := Parse(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := xray.Build(xray.SOCKSConfig("127.0.0.1", 10808, p.Outbound, "none")); err != nil {
+			t.Errorf("%s: %v", l, err)
+		}
+	}
+}

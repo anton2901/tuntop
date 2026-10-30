@@ -140,9 +140,10 @@ func streamSettings(q url.Values, host, defaultSecurity string) (*xray.StreamSet
 	case "tls":
 		sni := firstNonEmpty(q.Get("sni"), q.Get("peer"), hh, host)
 		ss.TLS = &xray.TLSSettings{
-			ServerName:    sni,
-			Fingerprint:   q.Get("fp"),
-			AllowInsecure: q.Get("allowInsecure") == "1" || q.Get("allowInsecure") == "true",
+			ServerName:  sni,
+			Fingerprint: q.Get("fp"),
+			// allowInsecure=1 is ignored: Xray rejects the option, the
+			// certificate is checked normally.
 		}
 		if a := q.Get("alpn"); a != "" {
 			ss.TLS.ALPN = strings.Split(a, ",")
