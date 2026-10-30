@@ -315,10 +315,16 @@ func KillSwitchOn(c Config) error {
 }
 
 // KillSwitchOff flushes the anchor and releases our pf reference.
-// The token file marks the switch as ours and on.
+// The token file marks pf as enabled by us. Without it (lost, or never
+// written after a crash) rules left in the anchor are still removed, or
+// the machine would stay cut off until someone runs pfctl by hand.
 func KillSwitchOff(c Config) error {
 	raw, err := os.ReadFile(pfTokenPath(c))
 	if err != nil {
+		if out, qerr := run(cmdPfctl, "-a", pfAnchor, "-s", "rules"); qerr == nil && strings.TrimSpace(out) != "" {
+			_, ferr := run(cmdPfctl, "-a", pfAnchor, "-F", "all")
+			return ferr
+		}
 		return nil
 	}
 	var errs []error

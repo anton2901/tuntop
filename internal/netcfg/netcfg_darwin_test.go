@@ -19,6 +19,7 @@ type fakeMac struct {
 	// scopedExists: the system already has a scoped default (non-primary).
 	scopedExists bool
 	pfRules      string // `pfctl -s rules`
+	anchorRules  string // `pfctl -a com.apple/tuntop -s rules`
 	stdin        string // last input to runInput
 }
 
@@ -38,6 +39,8 @@ func (f *fakeMac) install(t *testing.T) {
 		switch {
 		case name == cmdNetstat:
 			return f.netstat, nil
+		case name == cmdPfctl && args[0] == "-a" && args[len(args)-1] == "rules":
+			return f.anchorRules, nil
 		case name == cmdPfctl && args[0] == "-s":
 			return f.pfRules, nil
 		case name == cmdPfctl && args[0] == "-E":
@@ -226,8 +229,22 @@ func TestKillSwitchPf(t *testing.T) {
 	}
 	f.cmds = nil
 	_ = KillSwitchOff(c)
-	if len(f.cmds) != 0 {
-		t.Fatalf("off twice touched pf: %v", f.cmds)
+	if countPrefix(f.cmds, cmdPfctl+" -a com.apple/tuntop -F") != 0 || countPrefix(f.cmds, cmdPfctl+" -X") != 0 {
+		t.Fatalf("off twice changed pf: %v", f.cmds)
+	}
+}
+
+// The token file is gone but the block rules are still loaded: off and
+// recovery must flush them, and must not release a reference they never held.
+func TestKillSwitchOffWithoutToken(t *testing.T) {
+	f := &fakeMac{netstat: netstatPlain, anchorRules: "block return out quick all\n"}
+	f.install(t)
+	c := testConfig(t)
+	if err := KillSwitchOff(c); err != nil {
+		t.Fatal(err)
+	}
+	if countPrefix(f.cmds, cmdPfctl+" -a com.apple/tuntop -F all") != 1 || countPrefix(f.cmds, cmdPfctl+" -X") != 0 {
+		t.Fatalf("not flushed:\n%s", strings.Join(f.cmds, "\n"))
 	}
 }
 
