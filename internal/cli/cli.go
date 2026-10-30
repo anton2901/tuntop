@@ -35,6 +35,7 @@ type Client interface {
 	RemoveServer(ctx context.Context, key string) error
 	Test(ctx context.Context, keys []string) ([]api.Server, error)
 	Events(ctx context.Context, fn func(api.Event)) error
+	Log(ctx context.Context) ([]string, error)
 	Traffic(ctx context.Context) (api.Traffic, error)
 	SetFavorite(ctx context.Context, server string, on bool) (api.Server, error)
 	MoveSubscription(ctx context.Context, id string, to int) ([]api.Subscription, error)
@@ -51,6 +52,8 @@ type CLI struct {
 	Err io.Writer
 	// RunInstaller installs a version for "upgrade"; nil: scripts/get.sh.
 	RunInstaller func(ctx context.Context, version string) error
+	// LogPath is the service log file; empty: paths.LogFile.
+	LogPath string
 }
 
 const usage = `usage: tuntop [command]
@@ -80,6 +83,8 @@ const usage = `usage: tuntop [command]
   upgrade [--pre]      update tuntop from GitHub: latest release, or with --pre the newest
          [--version X]   incl. release candidates; --version X exact; --check only shows
          [--check]
+  logs [-n N] [-f]     show the service log (secrets masked); -f follows it
+  debug-bundle [file]  save a report for a bug: versions, settings, log, routes, DNS
   version              print version
 
 <server> is a number from "tuntop servers" or part of the server name.
@@ -131,6 +136,10 @@ func (c *CLI) Run(ctx context.Context, args []string) int {
 		err = c.removeServer(ctx, strings.Join(args, " "))
 	case "notify":
 		err = c.notify(ctx)
+	case "logs", "log":
+		err = c.logs(ctx, args)
+	case "debug-bundle":
+		err = c.debugBundle(ctx, args)
 	case "version", "--version":
 		c.println("tuntop " + version.String())
 	case "help", "-h", "--help":

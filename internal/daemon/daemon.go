@@ -376,8 +376,11 @@ func (d *Daemon) Connect(q string) (api.Status, error) {
 		return d.statusLocked(), err
 	}
 	d.disconnectLocked()
+	log.Printf("connecting: %s (mode %s)", e.Name, cmp.Or(d.st.Mode, api.ModeTUN))
+	t0 := time.Now()
 	sess, err := d.startLocked(profile)
 	if err != nil {
+		log.Printf("connect failed after %s: %s: %v", time.Since(t0).Round(time.Millisecond), e.Name, err)
 		d.lastErr = err.Error()
 		d.emitLocked(api.Event{Kind: api.EventConnectFailed, Server: e.Name, Error: err.Error()})
 		return d.statusLocked(), fmt.Errorf("connect: %w", err)
@@ -395,7 +398,7 @@ func (d *Daemon) Connect(q string) (api.Status, error) {
 			log.Printf("save state: %v", err)
 		}
 	}
-	log.Printf("connected: %s", e.Name)
+	log.Printf("connected: %s (%s)", e.Name, time.Since(t0).Round(time.Millisecond))
 	d.emitLocked(api.Event{Kind: api.EventConnected, Server: strings.TrimSpace(e.Name), Sub: d.subNameLocked(key)})
 	return d.statusLocked(), nil
 }
@@ -704,11 +707,13 @@ func (d *Daemon) Update(ctx context.Context, id string) ([]api.Subscription, err
 		}
 		cur := &d.st.Subscriptions[i]
 		if err != nil {
+			log.Printf("update subscription %s: %v", sb.ID, err)
 			cur.LastError = err.Error()
 			errs = append(errs, fmt.Errorf("%s: %w", cur.Name(), err))
 		} else if err := d.store.SaveBody(sb.ID, parsed.Body); err != nil {
 			errs = append(errs, err)
 		} else {
+			log.Printf("updated subscription %s: %d servers", sb.ID, len(parsed.Entries))
 			cur.Info, cur.UpdatedAt, cur.LastError = parsed.Info, time.Now(), ""
 			d.remapLocked(sb.ID, d.parsed[sb.ID], parsed)
 			d.parsed[sb.ID] = parsed
@@ -822,7 +827,19 @@ func (d *Daemon) Test(ctx context.Context, keys []string) ([]api.Server, error) 
 		}()
 	}
 	wg.Wait()
-	return d.Servers(), ctx.Err()
+	res := d.Servers()
+	var tested, ok int
+	for _, s := range res {
+		if len(keys) > 0 && !want[s.Key] {
+			continue
+		}
+		tested++
+		if s.Latency > 0 {
+			ok++
+		}
+	}
+	log.Printf("latency test: %d of %d servers answer", ok, tested)
+	return res, ctx.Err()
 }
 
 // Traffic reports throughput and history.
@@ -934,6 +951,8 @@ func (d *Daemon) SetSettings(s api.Settings) (api.Settings, error) {
 	case d.conn != nil && !reconnect:
 		d.killSwitchLocked(true)
 	}
+	log.Printf("settings: mode=%s proxy_port=%d kill_switch=%t auto_connect=%t auto_switch=%t auto_test=%dm",
+		cmp.Or(s.Mode, api.ModeTUN), s.ProxyPort, s.KillSwitch, s.AutoConnect, s.AutoSwitch, s.AutoTestMinutes)
 	saveErr := d.store.Save(d.st)
 	var key string
 	if reconnect {

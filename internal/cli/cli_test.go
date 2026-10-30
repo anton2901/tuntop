@@ -39,6 +39,10 @@ func (f *fakeClient) SetSettings(_ context.Context, s api.Settings) (api.Setting
 	return s, nil
 }
 
+func (f *fakeClient) Log(context.Context) ([]string, error) {
+	return []string{"12:00:00 in memory"}, nil
+}
+
 func (f *fakeClient) Status(context.Context) (api.Status, error) { return f.status, nil }
 
 func (f *fakeClient) Traffic(context.Context) (api.Traffic, error) {
@@ -337,5 +341,51 @@ func TestUpgrade(t *testing.T) {
 	version.Version = "0.4.0-rc.1"
 	if out, _ := runUp("--pre"); len(installed) != n || !strings.Contains(out, "up to date") {
 		t.Fatalf("rc current: %q", out)
+	}
+}
+
+func TestLogsTailAndFallback(t *testing.T) {
+	dir := t.TempDir()
+	p := dir + "/tuntopd.log"
+	if err := os.WriteFile(p, []byte("a\nb\nc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	c := &CLI{C: &fakeClient{}, T: i18n.T{}, Out: &out, Err: &out, LogPath: p}
+	if code := c.Run(context.Background(), []string{"logs", "-n", "2"}); code != 0 || out.String() != "b\nc\n" {
+		t.Fatalf("code %d out %q", code, out.String())
+	}
+	out.Reset()
+	c.LogPath = dir + "/missing.log"
+	if code := c.Run(context.Background(), []string{"logs"}); code != 0 || !strings.Contains(out.String(), "in memory") {
+		t.Fatalf("code %d out %q", code, out.String())
+	}
+}
+
+func TestDebugBundle(t *testing.T) {
+	dir := t.TempDir()
+	p := dir + "/tuntopd.log"
+	_ = os.WriteFile(p, []byte("x connect to 203.0.113.77 vless://abc@h:1\n"), 0o644)
+	dst := dir + "/bundle.txt"
+	var out bytes.Buffer
+	c := &CLI{C: &fakeClient{servers: []api.Server{{Name: "NL", Latency: 50}, {Name: "DE", Latency: -1}}}, T: i18n.T{}, Out: &out, Err: &out, LogPath: p}
+	if code := c.Run(context.Background(), []string{"debug-bundle", dst}); code != 0 {
+		t.Fatalf("code %d: %s", code, out.String())
+	}
+	b, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	for _, want := range []string{"== client ==", "== settings ==", "total 2: answer 1, no answer 1", "203.0.x.x#", "vless://<redacted>"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("bundle misses %q", want)
+		}
+	}
+	if strings.Contains(got, "203.0.113.77") || strings.Contains(got, "abc@h") {
+		t.Error("bundle leaks secrets")
+	}
+	if st, _ := os.Stat(dst); st.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v", st.Mode())
 	}
 }

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Log file `/var/log/tuntop/tuntopd.log` (5 MB x 4, rotated) with
+  timestamps; share links, subscription URL paths, UUIDs, keys and public
+  IP addresses are masked (an address keeps two parts and a short hash).
+  More events: connect timing and failures, subscription updates, latency
+  test summary, settings changes. `tuntop logs [-n N] [-f]` shows it.
+- `tuntop debug-bundle [file]`: one masked report with versions,
+  settings, the log tail and the routing and DNS state, for bug reports.
 - Share links `vmess://`, `trojan://`, `ss://` (SIP002 and legacy) and
   `hysteria2://` (`hy2://`; password auth, `sni`, `pinSHA256`, Salamander
   obfs). `insecure=1` is ignored: Xray no longer accepts `allowInsecure`.
