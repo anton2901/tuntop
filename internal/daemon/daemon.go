@@ -1187,15 +1187,15 @@ func (d *Daemon) dueSubscriptions(now time.Time) []string {
 	return due
 }
 
-// maskURL hides the token part of a subscription URL.
+// maskURL shows only where a subscription lives. The path (and query)
+// usually carries the access token, in any segment, so none of it is kept.
 func maskURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
 		return ""
 	}
-	parts := strings.Split(u.Path, "/")
-	if last := parts[len(parts)-1]; len(last) > 6 {
-		parts[len(parts)-1] = last[:3] + "…" + last[len(last)-2:]
+	if u.Path == "" || u.Path == "/" {
+		return u.Scheme + "://" + u.Host
 	}
-	return u.Scheme + "://" + u.Host + strings.Join(parts, "/")
+	return u.Scheme + "://" + u.Host + "/…"
 }

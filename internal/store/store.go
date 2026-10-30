@@ -96,7 +96,7 @@ func (s Store) Load() (*State, error) {
 		path := filepath.Join(s.Dir, "state.json")
 		broken := fmt.Sprintf("%s.broken-%d", path, time.Now().Unix())
 		if rerr := os.Rename(path, broken); rerr != nil {
-			return nil, fmt.Errorf("parse state: %w (and could not set it aside: %v)", err, rerr)
+			return nil, fmt.Errorf("parse state: %w", errors.Join(err, rerr))
 		}
 		log.Printf("state.json is unreadable (%v); moved to %s, starting empty", err, broken)
 		return &State{}, nil

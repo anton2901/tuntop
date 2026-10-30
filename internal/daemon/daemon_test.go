@@ -363,8 +363,19 @@ func TestDueSubscriptions(t *testing.T) {
 }
 
 func TestMaskURL(t *testing.T) {
-	if got := maskURL("https://sub.example.com/api/sub/AbCdEfGhIjKlMnOp"); got != "https://sub.example.com/api/sub/AbC…Op" {
-		t.Fatal(got)
+	for in, want := range map[string]string{
+		"https://sub.example.com/api/sub/AbCdEfGhIjKlMnOp": "https://sub.example.com/…",
+		"https://sub.example.com/TOKEN123456/sub":          "https://sub.example.com/…",
+		"https://sub.example.com/abc":                      "https://sub.example.com/…",
+		"https://sub.example.com/s?token=SECRET":           "https://sub.example.com/…",
+		"https://user:pass@sub.example.com:8443/x/y":       "https://sub.example.com:8443/…",
+		"https://sub.example.com/":                         "https://sub.example.com",
+		"https://sub.example.com?t=SECRET":                 "https://sub.example.com",
+		"not a url":                                        "",
+	} {
+		if got := maskURL(in); got != want {
+			t.Errorf("maskURL(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
