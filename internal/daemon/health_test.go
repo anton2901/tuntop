@@ -190,8 +190,7 @@ func TestAutoSwitch(t *testing.T) {
 	if _, err := e.client.SetSettings(ctx, s); err != nil {
 		t.Fatal(err)
 	}
-	// The failure count keeps growing past the threshold: no second switch
-	// attempt. A fresh failure series triggers it.
+	// A fresh failure series triggers the switch.
 	e.d.mu.Lock()
 	e.d.healthFails = 0
 	e.d.mu.Unlock()
@@ -210,6 +209,33 @@ func TestAutoSwitch(t *testing.T) {
 	}
 	if st, _ := e.client.Status(ctx); st.Server.Name != "🇩🇪 Germany" {
 		t.Fatalf("server = %s", st.Server.Name)
+	}
+}
+
+// With nothing answering, auto-switch looks again every failoverRetry checks.
+func TestAutoSwitchRetries(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.client.Connect(ctx, "NL"); err != nil {
+		t.Fatal(err)
+	}
+	e.d.mu.Lock()
+	e.d.st.AutoSwitch = true
+	conn := e.d.conn
+	e.d.mu.Unlock()
+	fail := errors.New("timeout")
+	var starts []int
+	for i := 1; i <= healthFailures+2*failoverRetry; i++ {
+		if e.d.recordCheck(conn, 0, fail) {
+			starts = append(starts, i)
+		}
+	}
+	want := []int{healthFailures, healthFailures + failoverRetry, healthFailures + 2*failoverRetry}
+	if len(starts) != len(want) || starts[0] != want[0] || starts[1] != want[1] || starts[2] != want[2] {
+		t.Fatalf("attempts at checks %v, want %v", starts, want)
 	}
 }
 

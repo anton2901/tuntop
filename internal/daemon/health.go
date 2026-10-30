@@ -93,7 +93,10 @@ func (d *Daemon) recordCheck(conn *connection, dur time.Duration, err error) (fa
 			d.emitLocked(api.Event{Kind: api.EventUnreachable, Server: name, Sub: d.subNameLocked(conn.key), Error: err.Error()})
 			return d.st.AutoSwitch
 		}
-		return false
+		// Nothing worked last time (the count is only reset by a success):
+		// look again every failoverRetry checks, other servers may be back.
+		over := d.healthFails - healthFailures
+		return over > 0 && over%failoverRetry == 0 && d.st.AutoSwitch
 	}
 	d.recordLatencyLocked(conn.key, max(int(dur.Milliseconds()), 1))
 	if d.healthFails >= healthFailures {
@@ -103,6 +106,10 @@ func (d *Daemon) recordCheck(conn *connection, dur time.Duration, err error) (fa
 	d.healthFails = 0
 	return false
 }
+
+// failoverRetry is how many failed checks pass between auto-switch attempts
+// while no server answers.
+const failoverRetry = 5
 
 // failoverTries is how many other servers are tried before giving up.
 const failoverTries = 5
