@@ -480,7 +480,14 @@ func TestExactGeometry(t *testing.T) {
 	for _, lang := range []i18n.Lang{i18n.EN, i18n.RU} {
 		m := New(f, lang, Config{})
 		m = run(t, m, m.refresh()())
-		for _, sz := range [][2]int{{80, 24}, {120, 40}, {60, 20}, {100, 15}} {
+		var sizes [][2]int
+		for w := 20; w <= 120; w++ {
+			for _, h := range []int{15, 24, 40} {
+				sizes = append(sizes, [2]int{w, h})
+			}
+		}
+		sizes = append(sizes, [2]int{60, 20}, [2]int{100, 15})
+		for _, sz := range sizes {
 			m = run(t, m, tea.WindowSizeMsg{Width: sz[0], Height: sz[1]})
 			for _, ov := range []overlayKind{ovNone, ovMenu, ovSettings, ovHelp, ovInfo, ovAddSub, ovConfirm} {
 				for _, tb := range []tab{tabServers, tabSubs, tabLog} {

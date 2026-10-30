@@ -5,6 +5,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"strings"
 	"time"
 
@@ -44,11 +45,21 @@ func (m Model) menuLabels() []string {
 
 // menuItemsTop is the line of the first menu item within menuLines: the
 // logo, the version line and two blank lines come first.
-func (m Model) menuItemsTop() int { return len(logo(m.th, m.width)) + 3 }
+func (m Model) menuItemsTop() int { return len(m.menuLogo()) + 3 }
+
+// menuLogo is the logo above the menu items, left out when the terminal
+// is too short for both.
+func (m Model) menuLogo() []string {
+	lg := logo(m.th, m.width)
+	if len(lg)+len(m.menuLabels())+5 > m.height {
+		return nil
+	}
+	return lg
+}
 
 func (m Model) menuLines() []string {
 	th := m.th
-	lg := logo(th, m.width)
+	lg := m.menuLogo()
 	w := 0
 	for _, l := range lg {
 		w = max(w, lipgloss.Width(l))
@@ -435,7 +446,22 @@ func (m Model) confirmLines() []string {
 	}.render(th)
 }
 
+// overlayLines is the current overlay clipped to the screen, so a window
+// wider or taller than the terminal cannot tear the layout.
 func (m Model) overlayLines() []string {
+	lines := m.rawOverlayLines()
+	if len(lines) > m.height {
+		lines = lines[:m.height]
+	}
+	for i, l := range lines {
+		if lipgloss.Width(l) > m.width {
+			lines[i] = ansi.Truncate(l, m.width, "")
+		}
+	}
+	return lines
+}
+
+func (m Model) rawOverlayLines() []string {
 	switch m.overlay {
 	case ovMenu:
 		return m.menuLines()

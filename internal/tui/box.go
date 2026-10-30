@@ -145,7 +145,14 @@ func overlay(base, box []string, width int, th Theme) []string {
 		bg := out[row]
 		left := ansi.Truncate(bg, x, "")
 		left += strings.Repeat(" ", max(x-lipgloss.Width(left), 0))
-		right := ansi.TruncateLeft(bg, x+lipgloss.Width(l), "")
+		start := x + lipgloss.Width(l)
+		right := ansi.TruncateLeft(bg, start, "")
+		// A double-width character cut by the box edge comes back whole:
+		// skip it and pad, so the row keeps its width.
+		if over := lipgloss.Width(left) + lipgloss.Width(l) + lipgloss.Width(right) - width; over > 0 {
+			right = ansi.TruncateLeft(bg, start+over, "")
+		}
+		right += strings.Repeat(" ", max(width-lipgloss.Width(left)-lipgloss.Width(l)-lipgloss.Width(right), 0))
 		out[row] = left + l + right
 	}
 	return out
