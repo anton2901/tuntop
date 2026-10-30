@@ -13,7 +13,6 @@ fi
 cat <<'EOF'
 tuntop is installed. The service starts with the system; the VPN starts off.
   tuntop                                        interface
-  systemctl --user enable --now tuntop-notify   desktop notifications
 Provider rules with geoip:/geosite: need geoip.dat and geosite.dat in
 /usr/share/v2ray or /usr/local/share/tuntop (see the README).
 EOF

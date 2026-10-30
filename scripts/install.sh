@@ -96,7 +96,7 @@ tuntop is installed. The service starts with the system; the VPN starts off.
   tuntop                   interface
   tuntop on / tuntop off   turn the VPN on / off
 
-Desktop notifications (as your user, not root):
+Desktop notifications are off; to get them (as your user, not root):
   systemctl --user enable --now tuntop-notify
 
 Only members of the "$group" group can control the VPN.

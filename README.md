@@ -86,9 +86,9 @@ sudo dnf install ./tuntop-<version>-1.x86_64.rpm
 
 What the installers do: put `tuntop` and `tuntopd` into `/usr/local/bin`,
 install the service (it starts with the system, the VPN starts off) and
-desktop notifications, and download the geoip/geosite databases that
+the optional notification unit (off by default), and download the geoip/geosite databases that
 provider rules need unless the system has them (on Arch: `v2ray-geoip`,
-`v2ray-domain-list-community`). Enable notifications on Linux with
+`v2ray-domain-list-community`). Notifications are off until you enable them on Linux with
 `systemctl --user enable --now tuntop-notify`. The kill switch needs
 `nftables` on Linux.
 
