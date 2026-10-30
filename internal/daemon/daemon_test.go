@@ -134,6 +134,10 @@ type env struct {
 	prov   *fakeProvider
 	d      *Daemon
 	client *api.Client
+	local  LocalProxy
+
+	mu         sync.Mutex
+	proxyPorts []uint16
 }
 
 func newEnv(t *testing.T) *env {
@@ -156,6 +160,12 @@ func newEnv(t *testing.T) *env {
 			blocked: map[string]bool{},
 		},
 	}
+	e.local = func(profile []byte, port uint16) (Session, error) {
+		e.mu.Lock()
+		e.proxyPorts = append(e.proxyPorts, port)
+		e.mu.Unlock()
+		return e.tun.Start(profile)
+	}
 	e.start(t)
 	return e
 }
@@ -163,7 +173,7 @@ func newEnv(t *testing.T) *env {
 func (e *env) start(t *testing.T) {
 	t.Helper()
 	d, err := New(store.Store{Dir: filepath.Join(e.dir, "state")}, Deps{
-		Tunnel: e.tun, KillSwitch: e.ks, Fetch: e.prov.fetch, Proxy: fakeProxy, Probe: fakeProbe,
+		Tunnel: e.tun, KillSwitch: e.ks, LocalProxy: e.local, Fetch: e.prov.fetch, Proxy: fakeProxy, Probe: fakeProbe,
 	})
 	if err != nil {
 		t.Fatal(err)

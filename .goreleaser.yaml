@@ -73,4 +73,5 @@ checksum:
 
 release:
   draft: true # look it over on GitHub, then publish by hand
+  prerelease: auto # vX.Y.Z-rc.1 is marked pre-release: not "latest", get.sh skips it
   name_template: "{{ .ProjectName }} {{ .Version }}"

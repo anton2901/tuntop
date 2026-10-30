@@ -52,6 +52,36 @@ type VLESSSettings struct {
 	Flow       string `json:"flow,omitempty"`
 }
 
+// VMessSettings configures a "vmess" outbound (flat form, one server).
+type VMessSettings struct {
+	Address  string `json:"address"`
+	Port     uint16 `json:"port"`
+	ID       string `json:"id"`
+	Security string `json:"security,omitempty"`
+}
+
+// TrojanSettings configures a "trojan" outbound (flat form, one server).
+type TrojanSettings struct {
+	Address  string `json:"address"`
+	Port     uint16 `json:"port"`
+	Password string `json:"password"`
+}
+
+// ShadowsocksSettings configures a "shadowsocks" outbound (flat form).
+type ShadowsocksSettings struct {
+	Address  string `json:"address"`
+	Port     uint16 `json:"port"`
+	Method   string `json:"method"`
+	Password string `json:"password"`
+}
+
+// HysteriaSettings configures a "hysteria" outbound (version 2 only).
+type HysteriaSettings struct {
+	Version int32  `json:"version"`
+	Address string `json:"address"`
+	Port    uint16 `json:"port"`
+}
+
 // StreamSettings selects the transport and its security layer.
 type StreamSettings struct {
 	Network  string `json:"network"`
@@ -65,6 +95,26 @@ type StreamSettings struct {
 	HTTPUpgrade *HTTPPathHost  `json:"httpupgradeSettings,omitempty"`
 	GRPC        *GRPCSettings  `json:"grpcSettings,omitempty"`
 	XHTTP       *XHTTPSettings `json:"xhttpSettings,omitempty"`
+
+	Hysteria  *HysteriaStream `json:"hysteriaSettings,omitempty"`
+	FinalMask *FinalMask      `json:"finalmask,omitempty"`
+}
+
+// HysteriaStream is the hysteria transport (auth password, version 2).
+type HysteriaStream struct {
+	Version int32  `json:"version"`
+	Auth    string `json:"auth"`
+}
+
+// FinalMask wraps the transport, e.g. Salamander obfuscation for hysteria.
+type FinalMask struct {
+	UDP []Mask `json:"udp,omitempty"`
+}
+
+// Mask is one finalmask layer.
+type Mask struct {
+	Type     string `json:"type"`
+	Settings any    `json:"settings,omitempty"`
 }
 
 // TLSSettings configures plain TLS.
@@ -73,6 +123,8 @@ type TLSSettings struct {
 	Fingerprint   string   `json:"fingerprint,omitempty"`
 	ALPN          []string `json:"alpn,omitempty"`
 	AllowInsecure bool     `json:"allowInsecure,omitempty"`
+	// PinnedPeerCertSha256 pins the server certificate (hysteria2 pinSHA256).
+	PinnedPeerCertSha256 string `json:"pinnedPeerCertSha256,omitempty"`
 }
 
 // REALITYSettings configures the client side of REALITY.

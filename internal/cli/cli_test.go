@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anton2901/tuntop/internal/version"
 
 	"github.com/anton2901/tuntop/internal/api"
 	"github.com/anton2901/tuntop/internal/i18n"
@@ -276,5 +280,62 @@ func TestRussianCoverage(t *testing.T) {
 func TestAppleString(t *testing.T) {
 	if got := appleString(`say "hi" \ bye`); got != `"say \"hi\" \\ bye"` {
 		t.Fatal(got)
+	}
+}
+
+func TestUpgrade(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases/latest":
+			_, _ = w.Write([]byte(`{"tag_name":"v0.3.0","draft":false}`))
+		case "/releases":
+			_, _ = w.Write([]byte(`[{"tag_name":"v0.4.0-rc.1"},{"tag_name":"v0.3.0"},{"tag_name":"v0.9.0","draft":true}]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	oldAPI, oldVer := releasesAPI, version.Version
+	releasesAPI, version.Version = srv.URL+"/releases", "0.2.0"
+	defer func() { releasesAPI, version.Version = oldAPI, oldVer }()
+
+	var installed []string
+	runUp := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		c := &CLI{
+			T: i18n.T{Lang: i18n.EN}, Out: &out, Err: &out,
+			RunInstaller: func(_ context.Context, v string) error { installed = append(installed, v); return nil },
+		}
+		err := c.upgrade(context.Background(), args)
+		return out.String(), err
+	}
+
+	if _, err := runUp(); err != nil || len(installed) != 1 || installed[0] != "0.3.0" {
+		t.Fatalf("stable: %v %v", installed, err)
+	}
+	if _, err := runUp("--pre"); err != nil || installed[len(installed)-1] != "0.4.0-rc.1" {
+		t.Fatalf("--pre: %v %v", installed, err)
+	}
+	n := len(installed)
+	if out, err := runUp("--check", "--pre"); err != nil || len(installed) != n || !strings.Contains(out, "0.4.0-rc.1") {
+		t.Fatalf("--check: %q %v", out, err)
+	}
+	if _, err := runUp("--version", "v0.2.5"); err != nil || installed[len(installed)-1] != "0.2.5" {
+		t.Fatalf("--version: %v %v", installed, err)
+	}
+	if _, err := runUp("--version", "banana"); err == nil {
+		t.Fatal("bad version accepted")
+	}
+
+	// Already newest: nothing is installed.
+	version.Version = "0.3.0"
+	n = len(installed)
+	if out, err := runUp(); err != nil || len(installed) != n || !strings.Contains(out, "up to date") {
+		t.Fatalf("up to date: %q %v", out, err)
+	}
+	// A release candidate of the next version is newer than the stable one.
+	version.Version = "0.4.0-rc.1"
+	if out, _ := runUp("--pre"); len(installed) != n || !strings.Contains(out, "up to date") {
+		t.Fatalf("rc current: %q", out)
 	}
 }

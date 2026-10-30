@@ -55,7 +55,23 @@ type Status struct {
 	// KillSwitch is true while traffic outside the tunnel is blocked; it
 	// stays so after a failed reconnect until "tuntop off".
 	KillSwitch bool `json:"kill_switch,omitempty"`
+	// Mode is how the VPN is on (ModeTUN or ModeProxy). ProxyPort is the
+	// SOCKS port in proxy mode (HTTP is the next one); 0 in TUN mode.
+	Mode      string `json:"mode,omitempty"`
+	ProxyPort int    `json:"proxy_port,omitempty"`
 }
+
+// Connection modes.
+const (
+	// ModeTUN routes the whole system through a TUN device (the default).
+	ModeTUN = "tun"
+	// ModeProxy only opens local SOCKS and HTTP proxy ports; programs
+	// use them by choice and nothing else changes in the system.
+	ModeProxy = "proxy"
+)
+
+// DefaultProxyPort is the SOCKS port of proxy mode; HTTP is one above.
+const DefaultProxyPort = 10808
 
 // Server is one selectable server or provider group.
 type Server struct {
@@ -101,6 +117,7 @@ const (
 	// The running tunnel stopped answering, or answers again.
 	EventUnreachable = "server_unreachable"
 	EventRecovered   = "server_recovered"
+	EventSwitched    = "server_switched"
 )
 
 // Event is something worth telling the user about (desktop notifications).
@@ -108,6 +125,7 @@ type Event struct {
 	Time   time.Time `json:"time"`
 	Kind   string    `json:"kind"`
 	Server string    `json:"server,omitempty"` // server name
+	From   string    `json:"from,omitempty"`   // EventSwitched: the server left
 	Sub    string    `json:"sub,omitempty"`    // subscription name
 	Error  string    `json:"error,omitempty"`
 	Days   int       `json:"days,omitempty"` // for EventExpiring
@@ -122,6 +140,13 @@ type Settings struct {
 	KillSwitch bool `json:"kill_switch"`
 	// AutoConnect: connect to the selected server when the service starts.
 	AutoConnect bool `json:"auto_connect"`
+	// AutoSwitch: when the server stops answering, move to a working one
+	// of the same subscription.
+	AutoSwitch bool `json:"auto_switch"`
+	// Mode is ModeTUN (default when empty) or ModeProxy; ProxyPort is the
+	// SOCKS port of ModeProxy (0: DefaultProxyPort).
+	Mode      string `json:"mode"`
+	ProxyPort int    `json:"proxy_port"`
 }
 
 // Subscription is a source of servers.

@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"runtime/debug"
 	"sync"
@@ -208,22 +207,7 @@ func Probe(ctx context.Context, profile []byte) (time.Duration, error) {
 		return 0, err
 	}
 	defer func() { _ = stop() }()
-	pu, _ := url.Parse(proxyURL)
-	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(pu)}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, probeURL, http.NoBody)
-	if err != nil {
-		return 0, err
-	}
-	start := time.Now()
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		return 0, fmt.Errorf("probe: HTTP %d", resp.StatusCode)
-	}
-	return time.Since(start), nil
+	return probeVia(ctx, proxyURL)
 }
 
 // resolveServers looks up the profile's proxy server domains through the

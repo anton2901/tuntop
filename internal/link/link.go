@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Package link parses share links (vless://, …) into Xray outbounds.
+// Package link parses share links (vless://, vmess://, trojan://, ss://, hysteria2://) into Xray outbounds.
 package link
 
 import (
@@ -34,6 +34,14 @@ func Parse(raw string) (Profile, error) {
 	switch strings.ToLower(scheme) {
 	case "vless":
 		return parseVLESS(raw)
+	case "vmess":
+		return parseVMess(raw)
+	case "trojan":
+		return parseTrojan(raw)
+	case "ss":
+		return parseShadowsocks(raw)
+	case "hysteria2", "hy2":
+		return parseHysteria2(raw)
 	default:
 		return Profile{}, fmt.Errorf("%w: %s", ErrUnsupported, scheme)
 	}

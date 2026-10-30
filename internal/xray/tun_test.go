@@ -236,3 +236,17 @@ func TestServerDomainsAndPinnedHosts(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWithLocalProxyBuilds(t *testing.T) {
+	prof, err := LinkProfile(Outbound{Protocol: "freedom"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := WithLocalProxy(prof, "127.0.0.1", 17900, 17901, "none")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildJSON(raw); err != nil {
+		t.Fatalf("xray rejected the config: %v\n%s", err, raw)
+	}
+}

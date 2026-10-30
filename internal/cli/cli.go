@@ -49,6 +49,8 @@ type CLI struct {
 	In  io.Reader
 	Out io.Writer
 	Err io.Writer
+	// RunInstaller installs a version for "upgrade"; nil: scripts/get.sh.
+	RunInstaller func(ctx context.Context, version string) error
 }
 
 const usage = `usage: tuntop [command]
@@ -62,6 +64,8 @@ const usage = `usage: tuntop [command]
   test [server]        measure latency (all servers by default)
   killswitch [on|off]  block traffic outside the tunnel while the VPN is on
   autoconnect [on|off] connect to the last server when the service starts
+  mode [tun|proxy] [port]  whole system through a TUN (default), or only local SOCKS/HTTP proxy ports
+  autoswitch [on|off]  move to a working server when the current one stops answering
   fav <server>         mark a server as favorite: it is listed first
   unfav <server>       unmark a favorite
   sub                  list subscriptions
@@ -70,9 +74,12 @@ const usage = `usage: tuntop [command]
   sub rm <n|id>        remove a subscription
   sub mv <n|id> <pos>  move a subscription to a position in the list
   update [n|id]        refresh subscriptions now (all by default)
-  add <link…|->        add individual vless:// links
+  add <link…|->        add individual share links (vless, vmess, trojan, ss, hysteria2)
   rm <server>          remove an individually added link
   notify               show desktop notifications about the VPN (runs until stopped)
+  upgrade [--pre]      update tuntop from GitHub: latest release, or with --pre the newest
+         [--version X]   incl. release candidates; --version X exact; --check only shows
+         [--check]
   version              print version
 
 <server> is a number from "tuntop servers" or part of the server name.
@@ -106,6 +113,12 @@ func (c *CLI) Run(ctx context.Context, args []string) int {
 		err = c.killSwitch(ctx, args)
 	case "autoconnect":
 		err = c.autoConnect(ctx, args)
+	case "upgrade":
+		err = c.upgrade(ctx, args)
+	case "mode":
+		err = c.mode(ctx, args)
+	case "autoswitch":
+		err = c.autoSwitch(ctx, args)
 	case "fav", "unfav":
 		err = c.favorite(ctx, strings.Join(args, " "), cmd == "fav")
 	case "sub", "subs":
@@ -145,7 +158,11 @@ func (c *CLI) status(ctx context.Context) error {
 		return err
 	}
 	if st.Connected {
-		c.printf("VPN:     ON, all traffic goes through the server\n")
+		if st.Mode == api.ModeProxy {
+			c.printf("VPN:     ON as a local proxy: SOCKS5 127.0.0.1:%d, HTTP 127.0.0.1:%d; the rest goes directly\n", st.ProxyPort, st.ProxyPort+1)
+		} else {
+			c.printf("VPN:     ON, all traffic goes through the server\n")
+		}
 		c.printf("server:  %s\n", serverLine(st.Server))
 		c.printf("since:   %s (%s)\n", st.Since.Format("15:04"), time.Since(st.Since).Round(time.Second))
 		if tr, err := c.C.Traffic(ctx); err == nil && tr.Connected {
@@ -195,6 +212,61 @@ func (c *CLI) autoConnect(ctx context.Context, args []string) error {
 		c.printf("auto-connect: on; the service connects to the last server when it starts\n")
 	} else {
 		c.printf("auto-connect: off; the VPN starts off\n")
+	}
+	return nil
+}
+
+func (c *CLI) mode(ctx context.Context, args []string) error {
+	s, err := c.C.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		switch args[0] {
+		case api.ModeTUN, api.ModeProxy:
+			s.Mode = args[0]
+		default:
+			return errors.New(c.T.S("mode: expected tun or proxy"))
+		}
+		if len(args) > 1 {
+			if s.ProxyPort, err = strconv.Atoi(args[1]); err != nil {
+				return errors.New(c.T.S("mode: the port must be a number"))
+			}
+		}
+		if s, err = c.C.SetSettings(ctx, s); err != nil {
+			return err
+		}
+	}
+	if s.Mode == api.ModeProxy {
+		c.printf("mode: proxy; SOCKS5 127.0.0.1:%d and HTTP 127.0.0.1:%d, the system is not changed\n", s.ProxyPort, s.ProxyPort+1)
+	} else {
+		c.printf("mode: tun; all system traffic goes through the server\n")
+	}
+	return nil
+}
+
+func (c *CLI) autoSwitch(ctx context.Context, args []string) error {
+	s, err := c.C.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		switch args[0] {
+		case "on":
+			s.AutoSwitch = true
+		case "off":
+			s.AutoSwitch = false
+		default:
+			return errors.New(c.T.S("autoswitch: expected on or off"))
+		}
+		if s, err = c.C.SetSettings(ctx, s); err != nil {
+			return err
+		}
+	}
+	if s.AutoSwitch {
+		c.printf("auto-switch: on; when the server stops answering, the service moves to a working one of the same subscription\n")
+	} else {
+		c.printf("auto-switch: off\n")
 	}
 	return nil
 }

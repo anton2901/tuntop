@@ -20,14 +20,21 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test ./...
-      # Release notes are this version's section of CHANGELOG.md.
+      # Release notes are this version's section of CHANGELOG.md; a
+      # pre-release (vX.Y.Z-rc.1) may use [Unreleased] instead.
       - name: Release notes
         run: |
-          awk -v v="${GITHUB_REF_NAME#v}" '
-            index($0, "## [" v "]") == 1 { f = 1; next }
-            /^## \[/ { f = 0 }
-            /^\[[^]]+\]: / { next }
-            f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          notes() {
+            awk -v v="$1" '
+              index($0, "## [" v "]") == 1 { f = 1; next }
+              /^## \[/ { f = 0 }
+              /^\[[^]]+\]: / { next }
+              f' CHANGELOG.md
+          }
+          notes "${GITHUB_REF_NAME#v}" > "$RUNNER_TEMP/notes.md"
+          case "$GITHUB_REF_NAME" in
+            *-*) test -s "$RUNNER_TEMP/notes.md" || notes Unreleased > "$RUNNER_TEMP/notes.md" ;;
+          esac
           test -s "$RUNNER_TEMP/notes.md" || { echo "no CHANGELOG section for $GITHUB_REF_NAME"; exit 1; }
       - uses: goreleaser/goreleaser-action@v7
         with:

@@ -75,6 +75,8 @@ func (c *CLI) describe(e api.Event) (title, body string, urgent bool) {
 		return t.S("Subscription expires soon"), t.F("%s: %d days left", e.Sub, e.Days), true
 	case api.EventUnreachable:
 		return t.S("VPN server not answering"), e.Server + ": " + e.Error, true
+	case api.EventSwitched:
+		return t.S("VPN switched server"), e.From + " → " + e.Server, false
 	case api.EventRecovered:
 		return t.S("VPN works again"), e.Server, false
 	}

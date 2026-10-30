@@ -53,6 +53,7 @@ func runDaemon(args []string) error {
 	}
 	d, err := daemon.New(store.Store{Dir: *stateDir}, daemon.Deps{
 		Tunnel:     daemon.XrayTunnel{Net: nc, LogLevel: *logLevel},
+		LocalProxy: daemon.StartLocalProxy,
 		KillSwitch: daemon.NetKillSwitch{Net: nc},
 		Check:      daemon.CheckTunnel,
 		Fetch:      daemon.Fetch,

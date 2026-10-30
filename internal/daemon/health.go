@@ -5,6 +5,8 @@ package daemon
 import (
 	"context"
 	"log"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/anton2901/tuntop/internal/api"
@@ -65,13 +67,21 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, healthTimeout)
-	dur, err := d.check(cctx)
+	dur, err := d.checkSession(cctx, conn.sess)
 	cancel()
 
+	if d.recordCheck(conn, dur, err) {
+		d.failover(ctx, conn)
+	}
+}
+
+// recordCheck stores the result of one check. It reports whether the
+// server just became unreachable and the user wants to move off it.
+func (d *Daemon) recordCheck(conn *connection, dur time.Duration, err error) (failover bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.conn != conn { // switched or turned off meanwhile
-		return
+		return false
 	}
 	name := d.serverNameLocked(conn.key)
 	if err != nil {
@@ -80,8 +90,9 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 		if d.healthFails == healthFailures {
 			log.Printf("server not answering: %s: %v", name, err)
 			d.emitLocked(api.Event{Kind: api.EventUnreachable, Server: name, Sub: d.subNameLocked(conn.key), Error: err.Error()})
+			return d.st.AutoSwitch
 		}
-		return
+		return false
 	}
 	d.recordLatencyLocked(conn.key, max(int(dur.Milliseconds()), 1))
 	if d.healthFails >= healthFailures {
@@ -89,6 +100,114 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 		d.emitLocked(api.Event{Kind: api.EventRecovered, Server: name, Sub: d.subNameLocked(conn.key)})
 	}
 	d.healthFails = 0
+	return false
+}
+
+// failoverTries is how many other servers are tried before giving up.
+const failoverTries = 5
+
+// failover moves off a dead server to one of the same subscription that
+// answers through the tunnel. Servers that failed their last measurement
+// are skipped; the fastest known go first. If none works, the original
+// server is connected again. It stops as soon as the user connects
+// elsewhere or turns the VPN off.
+func (d *Daemon) failover(ctx context.Context, from *connection) {
+	cands := d.failoverCandidates(from.key)
+	cur := from.key
+	for _, key := range cands {
+		if !d.stillOn(cur) {
+			return
+		}
+		if _, err := d.Connect(key); err != nil {
+			log.Printf("auto-switch: %s: %v", d.name(key), err)
+			cur = d.currentKey()
+			continue
+		}
+		cur = key
+		cctx, cancel := context.WithTimeout(ctx, healthTimeout)
+		d.mu.Lock()
+		var sess Session
+		if d.conn != nil {
+			sess = d.conn.sess
+		}
+		d.mu.Unlock()
+		if sess == nil { // turned off meanwhile
+			cancel()
+			return
+		}
+		dur, err := d.checkSession(cctx, sess)
+		cancel()
+		d.mu.Lock()
+		if err != nil {
+			d.recordLatencyLocked(key, -1)
+			d.mu.Unlock()
+			log.Printf("auto-switch: %s does not answer: %v", d.name(key), err)
+			continue
+		}
+		d.recordLatencyLocked(key, max(int(dur.Milliseconds()), 1))
+		d.healthFails = 0
+		d.emitLocked(api.Event{
+			Kind: api.EventSwitched, Server: d.serverNameLocked(key),
+			From: d.serverNameLocked(from.key), Sub: d.subNameLocked(key),
+		})
+		d.mu.Unlock()
+		log.Printf("auto-switch: %s → %s", d.name(from.key), d.name(key))
+		return
+	}
+	if len(cands) > 0 && d.stillOn(cur) {
+		log.Printf("auto-switch: no working server found, back to %s", d.name(from.key))
+		if _, err := d.Connect(from.key); err != nil {
+			log.Printf("auto-switch: reconnect: %v", err)
+		}
+	}
+}
+
+// failoverCandidates lists up to failoverTries servers of the subscription
+// of key, except key: measured ones by delay, then not yet measured ones.
+func (d *Daemon) failoverCandidates(key string) []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	subID, _, _ := strings.Cut(key, ":")
+	var known, unknown []api.Server
+	for _, s := range d.serversLocked() {
+		if s.SubID != subID || s.Key == key || s.Latency < 0 {
+			continue
+		}
+		if s.Latency > 0 {
+			known = append(known, s)
+		} else {
+			unknown = append(unknown, s)
+		}
+	}
+	sort.SliceStable(known, func(i, j int) bool { return known[i].Latency < known[j].Latency })
+	var out []string
+	for _, s := range append(known, unknown...) {
+		if len(out) == failoverTries {
+			break
+		}
+		out = append(out, s.Key)
+	}
+	return out
+}
+
+// stillOn reports whether the tunnel is up on key.
+func (d *Daemon) stillOn(key string) bool {
+	return d.currentKey() == key
+}
+
+func (d *Daemon) currentKey() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.conn == nil {
+		return ""
+	}
+	return d.conn.key
+}
+
+func (d *Daemon) name(key string) string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.serverNameLocked(key)
 }
 
 // serverNameLocked is the name of a server key, or the key itself.

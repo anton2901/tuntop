@@ -17,7 +17,12 @@ kill switch, in a btop-style interface that fits 80×24.
   refresh; blocked subscription domains are fetched through another
   provider's server.
 - **Links:** `vless://` with REALITY or TLS over TCP, WebSocket,
-  HTTPUpgrade, gRPC and XHTTP.
+  HTTPUpgrade, gRPC and XHTTP; `vmess://`, `trojan://`, `ss://` and
+  `hysteria2://`.
+- **Proxy mode** instead of TUN (`tuntop mode proxy`): only local SOCKS5
+  and HTTP ports, the system is left alone.
+- **Auto-switch** (off by default): moves to a working server of the same
+  subscription when the current one stops answering.
 - **System-wide TUN** on Linux (policy routing, systemd-resolved) and macOS
   (utun, split routes); the LAN stays direct, DNS goes through the tunnel.
 - **Kill switch:** while the VPN is on, nothing leaves the machine outside
@@ -140,10 +145,13 @@ tuntop servers                     # list servers
 tuntop sub add <link>              # add a subscription
 tuntop killswitch on|off           # block traffic outside the tunnel
 tuntop autoconnect on|off          # connect when the service starts
+tuntop autoswitch on|off           # move to a working server when one dies
+tuntop mode tun|proxy [port]       # whole system (default) or local SOCKS/HTTP
+tuntop upgrade [--pre]             # update from GitHub (--pre: incl. release candidates)
 ```
 
 `tuntop help` lists the rest: `test`, `fav`, `sub rm|mv`, `update`, `add`
-(single `vless://` links), `notify`, `version`. `TUNTOP_LANG=en|ru` sets
+(single share links), `notify`, `version`. `TUNTOP_LANG=en|ru` sets
 the language.
 
 ## Privacy

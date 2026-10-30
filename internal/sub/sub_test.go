@@ -110,11 +110,11 @@ func TestParseBase64Links(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(s.Entries) != 2 || s.Entries[0].Name != "NL" || s.Entries[1].Proto != "vless tls ws" ||
+			if len(s.Entries) != 3 || s.Entries[0].Name != "NL" || s.Entries[1].Proto != "vless tls ws" ||
 				s.Entries[1].Address != "de.example.com:8443" {
 				t.Fatalf("entries = %+v", s.Entries)
 			}
-			if len(s.Skipped) != 4 {
+			if len(s.Skipped) != 3 {
 				t.Fatalf("skipped = %+v", s.Skipped)
 			}
 			raw, err := s.Entries[0].Config("127.0.0.1", 10808, "none")

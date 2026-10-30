@@ -39,6 +39,12 @@ type State struct {
 	KillSwitch bool `json:"kill_switch,omitempty"`
 	// AutoConnect: connect to the selected server when the service starts.
 	AutoConnect bool `json:"auto_connect,omitempty"`
+	// AutoSwitch: move to a working server when the current one stops answering.
+	AutoSwitch bool `json:"auto_switch,omitempty"`
+	// Mode is "tun" (default when empty) or "proxy"; ProxyPort is the SOCKS
+	// port of the proxy mode.
+	Mode      string `json:"mode,omitempty"`
+	ProxyPort int    `json:"proxy_port,omitempty"`
 	// AutoTestMinutes: measure all servers' latency every N minutes; 0 off.
 	AutoTestMinutes int `json:"auto_test_minutes,omitempty"`
 }

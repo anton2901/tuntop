@@ -20,6 +20,22 @@ const InboundTag = "socks"
 // is kept as the provider wrote it, except plain public DNS resolvers,
 // which are upgraded to DoH (see upgradeToDoH).
 func WithSOCKS(raw []byte, host string, port uint16, logLevel string) ([]byte, error) {
+	return withInbounds(raw, []Inbound{socksInbound(host, port)}, logLevel)
+}
+
+// HTTPInboundTag is the tag of the HTTP inbound added by WithLocalProxy.
+const HTTPInboundTag = "http"
+
+// WithLocalProxy is WithSOCKS with an HTTP proxy inbound next to the SOCKS
+// one, for the local proxy mode.
+func WithLocalProxy(raw []byte, host string, socksPort, httpPort uint16, logLevel string) ([]byte, error) {
+	return withInbounds(raw, []Inbound{
+		socksInbound(host, socksPort),
+		{Tag: HTTPInboundTag, Listen: host, Port: httpPort, Protocol: "http", Settings: map[string]any{}},
+	}, logLevel)
+}
+
+func withInbounds(raw []byte, inbounds []Inbound, logLevel string) ([]byte, error) {
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse profile: %w", err)
@@ -27,7 +43,7 @@ func WithSOCKS(raw []byte, host string, port uint16, logLevel string) ([]byte, e
 	if _, ok := doc["outbounds"]; !ok {
 		return nil, errors.New("profile has no outbounds")
 	}
-	doc["inbounds"] = []Inbound{socksInbound(host, port)}
+	doc["inbounds"] = inbounds
 	doc["log"] = Log{Level: logLevel}
 	enableStats(doc)
 	// With domainStrategy IPIfNonMatch Xray resolves destinations itself,

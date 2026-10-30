@@ -6,6 +6,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -68,9 +69,11 @@ type Deps struct {
 	// Check, if set, watches the running tunnel (RunHealth).
 	Check  TunnelChecker
 	Tunnel Tunnel
-	Fetch  Fetcher
-	Proxy  ProxyStarter
-	Probe  Prober
+	// LocalProxy serves the proxy mode; nil refuses it.
+	LocalProxy LocalProxy
+	Fetch      Fetcher
+	Proxy      ProxyStarter
+	Probe      Prober
 	// Log, if set, is served by the API (GET /v1/log).
 	Log *LogRing
 }
@@ -79,6 +82,7 @@ type Deps struct {
 type Daemon struct {
 	store  store.Store
 	tunnel Tunnel
+	local  LocalProxy
 	fetch  Fetcher
 	proxy  ProxyStarter
 	probe  Prober
@@ -141,7 +145,7 @@ func New(st store.Store, deps Deps) (*Daemon, error) {
 		return nil, err
 	}
 	d := &Daemon{
-		store: st, tunnel: deps.Tunnel, ks: deps.KillSwitch, check: deps.Check, fetch: deps.Fetch, proxy: deps.Proxy, probe: deps.Probe, logs: deps.Log,
+		store: st, tunnel: deps.Tunnel, local: deps.LocalProxy, ks: deps.KillSwitch, check: deps.Check, fetch: deps.Fetch, proxy: deps.Proxy, probe: deps.Probe, logs: deps.Log,
 		st: s, parsed: map[string]*sub.Subscription{}, latency: map[string][]int{},
 		listeners: map[chan api.Event]struct{}{}, expiryNotified: map[string]string{},
 	}
@@ -183,6 +187,10 @@ func (d *Daemon) statusLocked() api.Status {
 	if d.conn != nil {
 		s.Connected = true
 		s.Since = d.conn.since
+		s.Mode = api.ModeTUN
+		if d.proxyModeLocked() {
+			s.Mode, s.ProxyPort = api.ModeProxy, d.proxyPortLocked()
+		}
 		s.Server = find(d.conn.key)
 		if s.Server == nil { // its subscription was updated or removed meanwhile
 			s.Server = &api.Server{Key: d.conn.key, Name: "(no longer in the list)"}
@@ -368,7 +376,7 @@ func (d *Daemon) Connect(q string) (api.Status, error) {
 		return d.statusLocked(), err
 	}
 	d.disconnectLocked()
-	sess, err := d.tunnel.Start(profile)
+	sess, err := d.startLocked(profile)
 	if err != nil {
 		d.lastErr = err.Error()
 		d.emitLocked(api.Event{Kind: api.EventConnectFailed, Server: e.Name, Error: err.Error()})
@@ -376,7 +384,7 @@ func (d *Daemon) Connect(q string) (api.Status, error) {
 	}
 	d.lastErr = ""
 	d.conn = &connection{key: key, since: time.Now(), sess: sess}
-	if d.st.KillSwitch {
+	if d.st.KillSwitch && !d.proxyModeLocked() {
 		d.killSwitchLocked(true)
 	}
 	d.lastUp, d.lastDown = 0, 0
@@ -390,6 +398,35 @@ func (d *Daemon) Connect(q string) (api.Status, error) {
 	log.Printf("connected: %s", e.Name)
 	d.emitLocked(api.Event{Kind: api.EventConnected, Server: strings.TrimSpace(e.Name), Sub: d.subNameLocked(key)})
 	return d.statusLocked(), nil
+}
+
+func (d *Daemon) proxyModeLocked() bool { return d.st.Mode == api.ModeProxy }
+
+// proxyPortLocked is the SOCKS port of the proxy mode.
+func (d *Daemon) proxyPortLocked() int {
+	if d.st.ProxyPort == 0 {
+		return api.DefaultProxyPort
+	}
+	return d.st.ProxyPort
+}
+
+// startLocked starts the data path of the current mode.
+func (d *Daemon) startLocked(profile []byte) (Session, error) {
+	if !d.proxyModeLocked() {
+		return d.tunnel.Start(profile)
+	}
+	if d.local == nil {
+		return nil, errors.New("proxy mode is not supported by this service")
+	}
+	return d.local(profile, uint16(d.proxyPortLocked()))
+}
+
+// checkSession measures one request through a running session.
+func (d *Daemon) checkSession(ctx context.Context, sess Session) (time.Duration, error) {
+	if c, ok := sess.(Checker); ok {
+		return c.Check(ctx)
+	}
+	return d.check(ctx)
 }
 
 // restartOnChange reconnects when the session reports a network change,
@@ -841,32 +878,75 @@ func (d *Daemon) RunTraffic(ctx context.Context) {
 func (d *Daemon) Settings() api.Settings {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch, AutoConnect: d.st.AutoConnect}
+	return d.settingsLocked()
 }
 
-// SetSettings validates and saves the service settings.
+func (d *Daemon) settingsLocked() api.Settings {
+	return api.Settings{
+		AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch,
+		AutoConnect: d.st.AutoConnect, AutoSwitch: d.st.AutoSwitch,
+		Mode: cmp.Or(d.st.Mode, api.ModeTUN), ProxyPort: d.proxyPortLocked(),
+	}
+}
+
+// SetSettings validates and saves the service settings. Changing the mode
+// or the proxy port while connected reconnects.
 func (d *Daemon) SetSettings(s api.Settings) (api.Settings, error) {
 	if s.AutoTestMinutes < 0 || s.AutoTestMinutes > 24*60 {
 		return d.Settings(), errors.New("auto test interval must be 0 (off) to 1440 minutes")
 	}
+	switch s.Mode {
+	case "", api.ModeTUN, api.ModeProxy:
+	default:
+		return d.Settings(), fmt.Errorf("unknown mode %q (tun or proxy)", s.Mode)
+	}
+	if s.Mode == api.ModeTUN {
+		s.Mode = ""
+	}
+	if s.ProxyPort == api.DefaultProxyPort {
+		s.ProxyPort = 0
+	}
+	if s.ProxyPort != 0 && (s.ProxyPort < 1024 || s.ProxyPort > 65534) {
+		return d.Settings(), errors.New("proxy port must be 1024 to 65534")
+	}
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if s.KillSwitch && d.ks == nil {
-		return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, AutoConnect: d.st.AutoConnect}, errors.New("kill switch is not supported on this system")
+		defer d.mu.Unlock()
+		return d.settingsLocked(), errors.New("kill switch is not supported on this system")
+	}
+	if s.Mode == api.ModeProxy && d.local == nil {
+		defer d.mu.Unlock()
+		return d.settingsLocked(), errors.New("proxy mode is not supported by this service")
 	}
 	if s.AutoTestMinutes != d.st.AutoTestMinutes {
 		d.lastAutoTest = time.Now() // next run one full interval from now
 	}
+	reconnect := d.conn != nil && (s.Mode != d.st.Mode || s.Mode == api.ModeProxy && s.ProxyPort != d.st.ProxyPort)
 	d.st.AutoTestMinutes = s.AutoTestMinutes
 	d.st.KillSwitch = s.KillSwitch
 	d.st.AutoConnect = s.AutoConnect
+	d.st.AutoSwitch = s.AutoSwitch
+	d.st.Mode, d.st.ProxyPort = s.Mode, s.ProxyPort
 	switch {
-	case !s.KillSwitch:
+	case !s.KillSwitch || d.proxyModeLocked():
+		// The kill switch only guards the TUN; proxy mode has none.
 		d.killSwitchLocked(false)
-	case d.conn != nil:
+	case d.conn != nil && !reconnect:
 		d.killSwitchLocked(true)
 	}
-	return api.Settings{AutoTestMinutes: d.st.AutoTestMinutes, KillSwitch: d.st.KillSwitch, AutoConnect: d.st.AutoConnect}, d.store.Save(d.st)
+	saveErr := d.store.Save(d.st)
+	var key string
+	if reconnect {
+		key = d.conn.key
+	}
+	out := d.settingsLocked()
+	d.mu.Unlock()
+	if reconnect {
+		if _, err := d.Connect(key); err != nil {
+			return out, err
+		}
+	}
+	return out, saveErr
 }
 
 // autoTestDue reports whether the periodic latency test should run.

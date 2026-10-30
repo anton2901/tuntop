@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anton2901/tuntop/internal/api"
+
 	"github.com/anton2901/tuntop/internal/i18n"
 	"github.com/anton2901/tuntop/internal/version"
 
@@ -158,12 +160,24 @@ func (m Model) settings() []setting {
 			m.svc.AutoTestMinutes = n // shown at once; the service confirms on refresh
 			return m.saveService()
 		}},
+		{m.t.S("Mode"), modeName(m), func(m *Model, _ int) tea.Cmd {
+			if m.svc.Mode == api.ModeProxy {
+				m.svc.Mode = api.ModeTUN
+			} else {
+				m.svc.Mode = api.ModeProxy
+			}
+			return m.saveService()
+		}},
 		{m.t.S("Kill switch"), onOff(m.svc.KillSwitch), func(m *Model, _ int) tea.Cmd {
 			m.svc.KillSwitch = !m.svc.KillSwitch
 			return m.saveService()
 		}},
 		{m.t.S("Auto-connect"), onOff(m.svc.AutoConnect), func(m *Model, _ int) tea.Cmd {
 			m.svc.AutoConnect = !m.svc.AutoConnect
+			return m.saveService()
+		}},
+		{m.t.S("Auto-switch"), onOff(m.svc.AutoSwitch), func(m *Model, _ int) tea.Cmd {
+			m.svc.AutoSwitch = !m.svc.AutoSwitch
 			return m.saveService()
 		}},
 		{m.t.S("Status panel"), shown(m.cfg.HideStatus), func(m *Model, _ int) tea.Cmd {
@@ -454,4 +468,12 @@ func (m Model) overlayOrigin() (x, y int, lines []string) {
 func centerIn(s string, w int) string {
 	pad := max((w-lipgloss.Width(s))/2, 0)
 	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", max(w-pad-lipgloss.Width(s), 0))
+}
+
+// modeName is the connection mode for the settings list.
+func modeName(m Model) string {
+	if m.svc.Mode == api.ModeProxy {
+		return m.t.S("proxy") + fmt.Sprintf(" :%d", m.svc.ProxyPort)
+	}
+	return "TUN"
 }

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Share links `vmess://`, `trojan://`, `ss://` (SIP002 and legacy) and
+  `hysteria2://` (`hy2://`; password auth, `sni`, `pinSHA256`, Salamander
+  obfs). `insecure=1` is ignored: Xray no longer accepts `allowInsecure`.
+- Auto-switch (`tuntop autoswitch on`, TUI settings, off by default): when
+  the server stops answering, the service moves to a working server of the
+  same subscription (known-fast first, up to five tries) and notifies;
+  if none works it returns to the original one.
+- `tuntop upgrade` updates from GitHub through `scripts/get.sh`: the latest
+  release, `--pre` for the newest incl. release candidates, `--version X`
+  for an exact one, `--check` to only look.
+- Release candidates: a tag like `v0.3.0-rc.1` is published as a
+  pre-release, which `get.sh` and `tuntop upgrade` skip unless asked.
+- Proxy mode (`tuntop mode proxy [port]`, TUI settings) as an alternative
+  to TUN: SOCKS5 on `127.0.0.1:10808` and HTTP on `:10809`, the system's
+  routing and DNS are not touched, no kill switch. TUN stays the default.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added

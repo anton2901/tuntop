@@ -16,6 +16,8 @@ var ruCLI = map[string]string{
   test [server]        measure latency (all servers by default)
   killswitch [on|off]  block traffic outside the tunnel while the VPN is on
   autoconnect [on|off] connect to the last server when the service starts
+  mode [tun|proxy] [port]  whole system through a TUN (default), or only local SOCKS/HTTP proxy ports
+  autoswitch [on|off]  move to a working server when the current one stops answering
   fav <server>         mark a server as favorite: it is listed first
   unfav <server>       unmark a favorite
   sub                  list subscriptions
@@ -24,9 +26,12 @@ var ruCLI = map[string]string{
   sub rm <n|id>        remove a subscription
   sub mv <n|id> <pos>  move a subscription to a position in the list
   update [n|id]        refresh subscriptions now (all by default)
-  add <link…|->        add individual vless:// links
+  add <link…|->        add individual share links (vless, vmess, trojan, ss, hysteria2)
   rm <server>          remove an individually added link
   notify               show desktop notifications about the VPN (runs until stopped)
+  upgrade [--pre]      update tuntop from GitHub: latest release, or with --pre the newest
+         [--version X]   incl. release candidates; --version X exact; --check only shows
+         [--check]
   version              print version
 
 <server> is a number from "tuntop servers" or part of the server name.
@@ -41,6 +46,8 @@ var ruCLI = map[string]string{
   test [сервер]        замер задержки (по умолчанию всех серверов)
   killswitch [on|off]  блокировать трафик мимо туннеля, пока VPN включён
   autoconnect [on|off] при старте службы подключаться к последнему серверу
+  mode [tun|proxy] [port]  вся система через TUN (по умолчанию) или только локальные SOCKS/HTTP-порты
+  autoswitch [on|off]  переходить на рабочий сервер, если текущий перестал отвечать
   fav <сервер>         добавить сервер в избранное: он будет в начале списка
   unfav <сервер>       убрать сервер из избранного
   sub                  подписки
@@ -52,6 +59,9 @@ var ruCLI = map[string]string{
   add <ссылка…|->      добавить отдельные vless:// ссылки
   rm <сервер>          удалить отдельно добавленную ссылку
   notify               уведомления рабочего стола о VPN (работает до остановки)
+  upgrade [--pre]      обновить tuntop с GitHub: последний релиз, с --pre — самый свежий
+         [--version X]   с кандидатами; --version X — точная версия; --check — только показать
+         [--check]
   version              версия
 
 <сервер> — номер из "tuntop servers" или часть названия сервера.
@@ -107,6 +117,20 @@ var ruCLI = map[string]string{
 	"VPN off":                         "VPN выключен",
 	"VPN server not answering":        "Сервер VPN не отвечает",
 	"VPN works again":                 "VPN снова работает",
+	"mode: expected tun or proxy":     "mode: укажите tun или proxy",
+	"mode: the port must be a number": "mode: порт должен быть числом",
+	"mode: proxy; SOCKS5 127.0.0.1:%d and HTTP 127.0.0.1:%d, the system is not changed\n":            "режим: proxy; SOCKS5 127.0.0.1:%d и HTTP 127.0.0.1:%d, система не меняется\n",
+	"mode: tun; all system traffic goes through the server\n":                                        "режим: tun; весь трафик системы идёт через сервер\n",
+	"VPN:     ON as a local proxy: SOCKS5 127.0.0.1:%d, HTTP 127.0.0.1:%d; the rest goes directly\n": "VPN:     ВКЛ. как локальный прокси: SOCKS5 127.0.0.1:%d, HTTP 127.0.0.1:%d; остальное идёт напрямую\n",
+	"upgrade: expected --pre, --check or --version X":                                                "upgrade: допустимы --pre, --check или --version X",
+	"upgrade: %q is not a version like 0.3.0 or 0.3.0-rc.1":                                          "upgrade: %q — не версия вроде 0.3.0 или 0.3.0-rc.1",
+	"tuntop is up to date: %s":                                                                       "tuntop уже последней версии: %s",
+	"available: %s (installed: %s)":                                                                  "доступна: %s (установлена: %s)",
+	"Installing %s (installed: %s). The service restarts: the VPN will be off.":                      "Устанавливаю %s (сейчас %s). Служба перезапустится: VPN будет выключен.",
+	"VPN switched server":            "VPN сменил сервер",
+	"autoswitch: expected on or off": "autoswitch: укажите on или off",
+	"auto-switch: on; when the server stops answering, the service moves to a working one of the same subscription\n": "автопереключение: включено; если сервер перестал отвечать, служба перейдёт на рабочий из той же подписки\n",
+	"auto-switch: off\n":              "автопереключение: выключено\n",
 	"autoconnect: expected on or off": "autoconnect: укажите on или off",
 	"auto-connect: on; the service connects to the last server when it starts\n": "авто-подключение: включено; при старте служба подключается к последнему серверу\n",
 	"auto-connect: off; the VPN starts off\n":                                    "авто-подключение: выключено; при старте VPN выключен\n",
