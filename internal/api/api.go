@@ -26,6 +26,7 @@
 package api
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/anton2901/tuntop/internal/paths"
@@ -208,4 +209,7 @@ type AddLinksRequest struct {
 // Error is the body of a failed request.
 type Error struct {
 	Error string `json:"error"`
+	// Data is what the request managed to produce despite the error (a
+	// settings change that applied but was not saved, say).
+	Data json.RawMessage `json:"data,omitempty"`
 }

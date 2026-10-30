@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/anton2901/tuntop/internal/api"
+	"github.com/anton2901/tuntop/internal/store"
 	"github.com/anton2901/tuntop/internal/sub"
 )
 
@@ -118,6 +119,12 @@ func TestMoveSubscription(t *testing.T) {
 	// Past the end: last before manual links.
 	if subs, _ = e.client.MoveSubscription(ctx, b, 9); subs[1].ID != b || subs[2].Name != "Manual" {
 		t.Fatalf("move down: %+v", subs)
+	}
+	e.d.mu.Lock()
+	last := e.d.st.Subscriptions[len(e.d.st.Subscriptions)-1].ID
+	e.d.mu.Unlock()
+	if last != store.ManualID {
+		t.Fatalf("manual links are not last in the state: %s", last)
 	}
 	if _, err := e.client.MoveSubscription(ctx, "manual", 1); err == nil {
 		t.Fatal("manual links moved")

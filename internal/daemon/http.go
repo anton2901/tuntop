@@ -133,13 +133,19 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
-// reply writes v, or err as {"error": ...} with status 400. Partial
-// failures of Update still return the data alongside the error status.
+// reply writes v, or err as {"error": ...} with status 400. A v returned
+// together with the error (a partly failed update) travels as "data".
 func reply(w http.ResponseWriter, v any, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
+		e := api.Error{Error: err.Error()}
+		if v != nil {
+			if b, merr := json.Marshal(v); merr == nil && string(b) != "null" && string(b) != "{}" {
+				e.Data = b
+			}
+		}
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(api.Error{Error: err.Error()})
+		_ = json.NewEncoder(w).Encode(e)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(v)

@@ -219,6 +219,9 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 	if resp.StatusCode/100 != 2 {
 		var e Error
 		if json.NewDecoder(resp.Body).Decode(&e) == nil && e.Error != "" {
+			if out != nil && len(e.Data) > 0 {
+				_ = json.Unmarshal(e.Data, out) // best effort, the error stays
+			}
 			return errors.New(e.Error)
 		}
 		return fmt.Errorf("tuntopd: HTTP %s", resp.Status)

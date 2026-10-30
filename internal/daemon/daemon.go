@@ -607,8 +607,13 @@ func (d *Daemon) MoveSubscription(id string, to int) ([]api.Subscription, error)
 			rest = append(rest, r)
 		}
 	}
-	// The position counts regular subscriptions only.
+	// The position counts regular subscriptions only; manual links stay last.
 	at, n := len(rest), 0
+	for j, r := range rest {
+		if r.ID == store.ManualID {
+			at = j
+		}
+	}
 	for j, r := range rest {
 		if r.ID == store.ManualID {
 			continue
