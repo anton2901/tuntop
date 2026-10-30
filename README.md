@@ -5,8 +5,8 @@ built on [Xray-core](https://github.com/XTLS/Xray-core). Think Happ or v2rayN,
 but in your terminal: subscriptions, a system-wide tunnel, latency tests and a
 kill switch, in a btop-style interface that fits 80×24.
 
-> **Status:** first release, v0.1.0. Used daily on CachyOS and macOS
-> (Apple Silicon). See [CHANGELOG.md](CHANGELOG.md).
+> **Status:** pre-1.0, used daily on CachyOS and macOS (Apple Silicon).
+> See [CHANGELOG.md](CHANGELOG.md) for what each release changed.
 
 ## Features
 
@@ -18,16 +18,18 @@ kill switch, in a btop-style interface that fits 80×24.
   provider's server.
 - **Links:** `vless://` with REALITY or TLS over TCP, WebSocket,
   HTTPUpgrade, gRPC and XHTTP; `vmess://`, `trojan://`, `ss://` and
-  `hysteria2://`.
-- **Proxy mode** instead of TUN (`tuntop mode proxy`): only local SOCKS5
-  and HTTP ports, the system is left alone.
-- **Auto-switch** (off by default): moves to a working server of the same
-  subscription when the current one stops answering.
+  `hysteria2://` (`hy2://`).
 - **System-wide TUN** on Linux (policy routing, systemd-resolved) and macOS
   (utun, split routes); the LAN stays direct, DNS goes through the tunnel.
 - **Kill switch:** while the VPN is on, nothing leaves the machine outside
   the tunnel, also during server switches and failed reconnects. nftables
   on Linux, pf on macOS.
+- **Proxy mode** as an alternative to TUN (`tuntop mode proxy`): only local
+  SOCKS5 (`127.0.0.1:10808`) and HTTP (`:10809`) ports; routing, DNS and the
+  rest of the system are left alone. There is no kill switch in this mode.
+- **Auto-switch** (off by default): when the server stops answering, moves
+  to a working one of the same subscription (the fastest known first) and
+  notifies you; if none works it returns to the original.
 - **Latency tests** (manual or every 10 min – 6 h) with a short history per
   server; **favorites** listed first; **subscription order** of your choice.
 - **Tunnel health:** a check through the tunnel every minute keeps the
@@ -37,9 +39,9 @@ kill switch, in a btop-style interface that fits 80×24.
 - **TUI and CLI** over the same service: closing the TUI leaves the VPN as
   it is. English and Russian, five themes, mouse support.
 
-Not yet: other link types (trojan, ss, vmess, hysteria2), Clash and sing-box
-formats, a local proxy mode instead of TUN, automatic failover. See
-[docs/tasks/mvp.md](docs/tasks/mvp.md) for the plan.
+Not yet: `tuic://` links, Clash and sing-box formats, WireGuard, server
+priorities and a backup subscription for auto-switch, a system-wide proxy
+setting for the proxy mode.
 
 ## How it works
 
@@ -55,7 +57,7 @@ They talk over a unix socket that only administrators can open: group
 
 Linux with systemd (amd64, arm64) or macOS 13+ (Apple Silicon, Intel).
 
-**One command** (install or update):
+**One command** (install; see [Updating](#updating) to update):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/anton2901/tuntop/main/scripts/get.sh | sh
@@ -63,15 +65,16 @@ curl -fsSL https://raw.githubusercontent.com/anton2901/tuntop/main/scripts/get.s
 
 [The script](scripts/get.sh) downloads the latest release for your system,
 checks it against the release's `checksums.txt` and runs the installer from
-the archive with `sudo`. Read it first if you like; `TUNTOP_VERSION=0.1.0`
-picks a version, `TUNTOP_DOWNLOAD=1` only downloads and verifies.
+the archive with `sudo`. Read it first if you like; `TUNTOP_VERSION=0.3.0`
+picks a version, `TUNTOP_DOWNLOAD=1` only downloads and verifies. Release
+candidates (pre-releases) are skipped unless you pick one by version.
 
 **Packages** (Debian, Ubuntu, Fedora…): take the `.deb` or `.rpm` from
 [Releases](https://github.com/anton2901/tuntop/releases):
 
 ```bash
-sudo apt install ./tuntop_0.1.0_amd64.deb
-sudo dnf install ./tuntop-0.1.0-1.x86_64.rpm
+sudo apt install ./tuntop_<version>_amd64.deb
+sudo dnf install ./tuntop-<version>-1.x86_64.rpm
 ```
 
 **Archive:** download `tuntop_<version>_<os>_<arch>.tar.gz` from
@@ -95,6 +98,27 @@ tuntop refuses to connect while another one owns the default route).
 Remove with `sudo ./uninstall.sh [--purge]` or
 `sudo ./uninstall-macos.sh [--purge]` from the archive (or `scripts/`), or
 with your package manager.
+
+## Updating
+
+```bash
+tuntop upgrade              # the latest release
+tuntop upgrade --pre        # the newest, release candidates included
+tuntop upgrade --version X  # exactly X, also to go back
+tuntop upgrade --check      # only show what would be installed
+```
+
+`tuntop upgrade` asks GitHub for the release, then runs the same
+[install script](scripts/get.sh) as the first install: it verifies the
+download against `checksums.txt`, installs with `sudo` and restarts the
+service. **The VPN is off afterwards**; turn it on again with `tuntop on`
+(or enable auto-connect). Subscriptions and settings stay. It does nothing
+if you already have the newest version. With a package manager, install the
+new `.deb`/`.rpm` instead.
+
+Release candidates (`v0.3.0-rc.1`) are published as GitHub pre-releases to
+try changes before a release; they are never installed unless you ask with
+`--pre` or `--version`. tuntop does not check for new versions by itself.
 
 ## Using
 
@@ -129,7 +153,7 @@ settings and the VPN comes up by itself when the computer starts.
 | `i` | server details |
 | `3` `4` `5` | tabs: servers, subscriptions, log |
 | `a` `x` `Shift+↑↓` | subscriptions tab: add, remove, move |
-| `Esc` | menu: settings (language, theme, latency test, kill switch, auto-connect), help, about |
+| `Esc` | menu: settings (language, theme, latency test, mode, kill switch, auto-connect, auto-switch), help, about |
 
 The mouse works too: click to select, double-click to connect. Keys work
 in a Russian keyboard layout as well.
@@ -147,7 +171,7 @@ tuntop killswitch on|off           # block traffic outside the tunnel
 tuntop autoconnect on|off          # connect when the service starts
 tuntop autoswitch on|off           # move to a working server when one dies
 tuntop mode tun|proxy [port]       # whole system (default) or local SOCKS/HTTP
-tuntop upgrade [--pre]             # update from GitHub (--pre: incl. release candidates)
+tuntop upgrade [--pre]             # update from GitHub, see Updating
 ```
 
 `tuntop help` lists the rest: `test`, `fav`, `sub rm|mv`, `update`, `add`
@@ -163,7 +187,8 @@ the language.
   shows their text. Turn it off per
   subscription with `tuntop sub add -no-hwid …`.
 - tuntop contacts nothing but your providers and their servers; there is no
-  telemetry and no external IP lookup. Latency tests request
+  telemetry, no external IP lookup and no version check. Only when you run
+  `tuntop upgrade` does it talk to github.com. Latency tests request
   `https://www.gstatic.com/generate_204` through each server. The macOS
   installer downloads the geo databases from GitHub
   ([Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat)).
