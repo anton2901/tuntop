@@ -5,9 +5,10 @@ package tui
 import (
 	"context"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anton2901/tuntop/internal/api"
 

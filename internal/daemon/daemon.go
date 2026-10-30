@@ -93,6 +93,10 @@ type Daemon struct {
 	healthFails int
 	// userOff: the user turned the VPN off since start; auto-connect stops.
 	userOff bool
+	// connMu serializes connects; connecting is true while one is starting
+	// the tunnel (d.conn is nil then).
+	connMu     sync.Mutex
+	connecting bool
 	// offs counts the user's Disconnect calls; background reconnects
 	// remember it and give up when it moved.
 	offs uint64
@@ -191,6 +195,7 @@ func (d *Daemon) statusLocked() api.Status {
 		}
 		return nil
 	}
+	s.Connecting = d.connecting
 	if d.conn != nil {
 		s.Connected = true
 		s.Since = d.conn.since
@@ -379,32 +384,62 @@ func (d *Daemon) reconnect(q string, offs uint64) (api.Status, error) {
 }
 
 func (d *Daemon) connect(q string, allowed func() bool) (api.Status, error) {
+	// One connect at a time, but d.mu is held only around state changes:
+	// starting the tunnel takes seconds, and every status request waits on mu.
+	d.connMu.Lock()
+	defer d.connMu.Unlock()
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if allowed != nil && !allowed() {
+		defer d.mu.Unlock()
 		return d.statusLocked(), errors.New("turned off by the user")
 	}
 	key, err := d.resolveLocked(q)
 	if err != nil {
+		defer d.mu.Unlock()
 		return d.statusLocked(), err
 	}
 	e, ok := d.entryLocked(key)
 	if !ok {
+		defer d.mu.Unlock()
 		return d.statusLocked(), errors.New("selected server is no longer in its subscription; choose another")
 	}
 	profile, err := e.Profile()
 	if err != nil {
+		defer d.mu.Unlock()
 		return d.statusLocked(), err
 	}
-	d.disconnectLocked()
-	log.Printf("connecting: %s (mode %s)", e.Name, cmp.Or(d.st.Mode, api.ModeTUN))
+	mode, port := cmp.Or(d.st.Mode, api.ModeTUN), uint16(d.proxyPortLocked())
+	offs := d.offs
+	old := d.detachLocked()
+	d.connecting = true
+	d.mu.Unlock()
+
+	d.stopConn(old)
+	log.Printf("connecting: %s (mode %s)", e.Name, mode)
 	t0 := time.Now()
-	sess, err := d.startLocked(profile)
+	sess, err := d.start(profile, mode, port)
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.connecting = false
 	if err != nil {
 		log.Printf("connect failed after %s: %s: %v", time.Since(t0).Round(time.Millisecond), e.Name, err)
 		d.lastErr = safe.Text(err.Error())
 		d.emitLocked(api.Event{Kind: api.EventConnectFailed, Server: e.Name, Error: err.Error()})
+		if d.offs != offs {
+			d.killSwitchLocked(false) // "off" came in meanwhile
+		}
 		return d.statusLocked(), fmt.Errorf("connect: %w", err)
+	}
+	if d.offs != offs {
+		// The user pressed "off" while the tunnel was starting.
+		if err := sess.Stop(); err != nil {
+			log.Printf("disconnect: %v", err)
+		}
+		d.killSwitchLocked(false)
+		d.emitLocked(api.Event{Kind: api.EventDisconnected})
+		log.Print("turned off while connecting")
+		return d.statusLocked(), errors.New("turned off by the user")
 	}
 	d.lastErr = ""
 	d.conn = &connection{key: key, since: time.Now(), sess: sess, ended: make(chan struct{})}
@@ -434,15 +469,16 @@ func (d *Daemon) proxyPortLocked() int {
 	return d.st.ProxyPort
 }
 
-// startLocked starts the data path of the current mode.
-func (d *Daemon) startLocked(profile []byte) (Session, error) {
-	if !d.proxyModeLocked() {
+// start starts the data path of the given mode. It does not touch daemon
+// state and may take long, so it runs without d.mu.
+func (d *Daemon) start(profile []byte, mode string, port uint16) (Session, error) {
+	if mode != api.ModeProxy {
 		return d.tunnel.Start(profile)
 	}
 	if d.local == nil {
 		return nil, errors.New("proxy mode is not supported by this service")
 	}
-	return d.local(profile, uint16(d.proxyPortLocked()))
+	return d.local(profile, port)
 }
 
 // checkSession measures one request through a running session.
@@ -489,6 +525,10 @@ func (d *Daemon) Disconnect() api.Status {
 	defer d.mu.Unlock()
 	d.userOff = true
 	d.offs++
+	if d.connecting {
+		// The connect in flight sees the counter move and tears itself down.
+		return d.statusLocked()
+	}
 	if d.conn != nil {
 		d.disconnectLocked()
 		d.emitLocked(api.Event{Kind: api.EventDisconnected})
@@ -556,15 +596,29 @@ func (d *Daemon) subNameLocked(key string) string {
 }
 
 func (d *Daemon) disconnectLocked() {
-	if d.conn == nil {
-		return
+	d.stopConn(d.detachLocked())
+}
+
+// detachLocked takes the connection out of the daemon's state and returns
+// it; stopConn then stops it, which may be done without d.mu.
+func (d *Daemon) detachLocked() *connection {
+	c := d.conn
+	if c == nil {
+		return nil
 	}
-	if err := d.conn.sess.Stop(); err != nil {
-		log.Printf("disconnect: %v", err)
-	}
-	close(d.conn.ended)
+	close(c.ended)
 	d.conn = nil
 	d.lastUp, d.lastDown = 0, 0 // the totals belong to the session
+	return c
+}
+
+func (d *Daemon) stopConn(c *connection) {
+	if c == nil {
+		return
+	}
+	if err := c.sess.Stop(); err != nil {
+		log.Printf("disconnect: %v", err)
+	}
 	log.Print("disconnected")
 }
 

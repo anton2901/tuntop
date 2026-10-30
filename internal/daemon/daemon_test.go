@@ -33,9 +33,17 @@ type fakeTunnel struct {
 	started  [][]byte
 	fail     error
 	sessions []*fakeSession
+	// gate, when set, holds Start until it is closed (a slow handshake).
+	gate chan struct{}
 }
 
 func (f *fakeTunnel) Start(profile []byte) (Session, error) {
+	f.mu.Lock()
+	gate := f.gate
+	f.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.fail != nil {
@@ -633,5 +641,58 @@ func TestRemoveActiveSubscriptionDisconnects(t *testing.T) {
 	}
 	if tr := e.d.Traffic(); tr.UpTotal != 0 || tr.DownTotal != 0 {
 		t.Fatalf("totals after off: %+v", tr)
+	}
+}
+
+// While the tunnel starts, status requests answer at once and say so; an
+// "off" in that time wins over the finished connect.
+func TestStatusDuringSlowConnectAndOff(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"}); err != nil {
+		t.Fatal(err)
+	}
+	gate := make(chan struct{})
+	e.tun.mu.Lock()
+	e.tun.gate = gate
+	e.tun.mu.Unlock()
+	res := make(chan error, 1)
+	go func() {
+		_, err := e.client.Connect(ctx, "NL")
+		res <- err
+	}()
+	var st api.Status
+	for i := 0; ; i++ {
+		cctx, cancel := context.WithTimeout(ctx, time.Second)
+		var err error
+		st, err = e.client.Status(cctx)
+		cancel()
+		if err != nil {
+			t.Fatalf("status blocked while connecting: %v", err)
+		}
+		if st.Connecting {
+			break
+		}
+		if i > 200 {
+			t.Fatal("never reported connecting")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if st.Connected {
+		t.Fatal("connected before the tunnel is up")
+	}
+	if _, err := e.client.Disconnect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	close(gate)
+	if err := <-res; err == nil {
+		t.Fatal("connect succeeded after off")
+	}
+	st, _ = e.client.Status(ctx)
+	e.tun.mu.Lock()
+	running := e.tun.running
+	e.tun.mu.Unlock()
+	if st.Connected || st.Connecting || running != 0 {
+		t.Fatalf("after off: %+v, %d tunnels running", st, running)
 	}
 }

@@ -109,6 +109,7 @@ var ruCLI = map[string]string{
 	"server:  %s\n":                                                      "сервер:  %s\n",
 	"traffic: ↓ %s (%s)  ↑ %s (%s)\n":                                    "трафик:  ↓ %s (%s)  ↑ %s (%s)\n",
 	"since:   %s (%s)\n":                                                 "с:       %s (%s)\n",
+	"VPN:     connecting…\n":                                             "VPN:     подключается…\n",
 	"VPN:     off, traffic goes directly\n":                              "VPN:     выключен, трафик идёт напрямую\n",
 	"on:      \"tuntop on\" connects to %s\n":                            "вкл.:    \"tuntop on\" подключит к %s\n",
 	"on:      pick a server first: tuntop servers, then tuntop on <n>\n": "вкл.:    сначала выберите сервер: tuntop servers, затем tuntop on <n>\n",

@@ -44,11 +44,13 @@ type Status struct {
 	Version string `json:"version"`
 	// Build is the service's full version line (version, commit, date)
 	// and Xray the embedded Xray-core module version.
-	Build     string    `json:"build,omitempty"`
-	Xray      string    `json:"xray,omitempty"`
-	Connected bool      `json:"connected"`
-	Server    *Server   `json:"server,omitempty"`
-	Since     time.Time `json:"since,omitzero"`
+	Build     string `json:"build,omitempty"`
+	Xray      string `json:"xray,omitempty"`
+	Connected bool   `json:"connected"`
+	// Connecting is true while the tunnel is being started.
+	Connecting bool      `json:"connecting,omitempty"`
+	Server     *Server   `json:"server,omitempty"`
+	Since      time.Time `json:"since,omitzero"`
 	// Selected is the server "tuntop on" connects to, even when disconnected.
 	Selected *Server `json:"selected,omitempty"`
 	// LastError is the last connection failure, if any.

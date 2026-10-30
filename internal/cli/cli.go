@@ -166,7 +166,8 @@ func (c *CLI) status(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if st.Connected {
+	switch {
+	case st.Connected:
 		if st.Mode == api.ModeProxy {
 			c.printf("VPN:     ON as a local proxy: SOCKS5 127.0.0.1:%d, HTTP 127.0.0.1:%d; the rest goes directly\n", st.ProxyPort, st.ProxyPort+1)
 		} else {
@@ -178,7 +179,9 @@ func (c *CLI) status(ctx context.Context) error {
 			c.printf("traffic: ↓ %s (%s)  ↑ %s (%s)\n",
 				c.T.Size(tr.DownTotal), c.T.Rate(tr.DownRate), c.T.Size(tr.UpTotal), c.T.Rate(tr.UpRate))
 		}
-	} else {
+	case st.Connecting:
+		c.printf("VPN:     connecting…\n")
+	default:
 		c.printf("VPN:     off, traffic goes directly\n")
 		if st.Selected != nil {
 			c.printf("on:      \"tuntop on\" connects to %s\n", serverLine(st.Selected))

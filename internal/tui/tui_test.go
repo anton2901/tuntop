@@ -490,7 +490,11 @@ func TestExactGeometry(t *testing.T) {
 		for _, sz := range sizes {
 			m = run(t, m, tea.WindowSizeMsg{Width: sz[0], Height: sz[1]})
 			for _, ov := range []overlayKind{ovNone, ovMenu, ovSettings, ovHelp, ovInfo, ovAddSub, ovConfirm} {
-				for _, tb := range []tab{tabServers, tabSubs, tabLog} {
+				tabs := []tab{tabServers}
+				if ov == ovNone { // overlays do not depend on the tab
+					tabs = []tab{tabServers, tabSubs, tabLog}
+				}
+				for _, tb := range tabs {
 					m.tab, m.overlay = tb, ov
 					lines := strings.Split(m.View(), "\n")
 					if len(lines) != sz[1] {

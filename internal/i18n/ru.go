@@ -10,6 +10,7 @@ var ru = map[string]string{
 	"OFF":                      "ВЫКЛ",
 	"traffic goes directly":    "трафик идёт напрямую",
 	"tuntopd is not reachable": "служба tuntopd недоступна",
+	"connecting…":              "подключение…",
 	"connecting to tuntopd…":   "подключаюсь к службе tuntopd…",
 	"Servers":                  "Серверы",
 	"Subscriptions":            "Подписки",

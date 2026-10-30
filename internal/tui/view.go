@@ -61,6 +61,8 @@ func (m Model) statusBox(w int) boxSpec {
 		}
 	case !m.connected:
 		body = []string{" " + th.dim().Render(m.t.S("connecting to tuntopd…"))}
+	case m.status.Connecting:
+		body = []string{" " + th.warn().Bold(true).Render("◌ "+m.t.S("connecting…"))}
 	case m.status.Connected:
 		s := m.status.Server
 		since := th.dim().Render(fmtDuration(time.Since(m.status.Since)) + " ")
