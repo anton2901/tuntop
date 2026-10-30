@@ -136,6 +136,9 @@ type connection struct {
 	key   string
 	since time.Time
 	sess  Session
+	// ended closes when the connection is torn down, so restartOnChange
+	// does not wait on a session that will never report a change.
+	ended chan struct{}
 }
 
 // New loads state and cached subscriptions.
@@ -386,12 +389,12 @@ func (d *Daemon) Connect(q string) (api.Status, error) {
 		return d.statusLocked(), fmt.Errorf("connect: %w", err)
 	}
 	d.lastErr = ""
-	d.conn = &connection{key: key, since: time.Now(), sess: sess}
+	d.conn = &connection{key: key, since: time.Now(), sess: sess, ended: make(chan struct{})}
 	if d.st.KillSwitch && !d.proxyModeLocked() {
 		d.killSwitchLocked(true)
 	}
 	d.lastUp, d.lastDown = 0, 0
-	go d.restartOnChange(sess)
+	go d.restartOnChange(sess, d.conn.ended)
 	if d.st.Selected != key {
 		d.st.Selected = key
 		if err := d.store.Save(d.st); err != nil {
@@ -434,12 +437,16 @@ func (d *Daemon) checkSession(ctx context.Context, sess Session) (time.Duration,
 
 // restartOnChange reconnects when the session reports a network change,
 // unless the user switched or disconnected meanwhile.
-func (d *Daemon) restartOnChange(sess Session) {
+func (d *Daemon) restartOnChange(sess Session, ended <-chan struct{}) {
 	done := sess.Done()
 	if done == nil {
 		return
 	}
-	<-done
+	select {
+	case <-done:
+	case <-ended:
+		return
+	}
 	d.mu.Lock()
 	current := d.conn != nil && d.conn.sess == sess
 	var key string
@@ -535,6 +542,7 @@ func (d *Daemon) disconnectLocked() {
 	if err := d.conn.sess.Stop(); err != nil {
 		log.Printf("disconnect: %v", err)
 	}
+	close(d.conn.ended)
 	d.conn = nil
 	log.Print("disconnected")
 }

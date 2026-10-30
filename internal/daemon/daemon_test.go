@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -567,5 +568,32 @@ func TestReconnectOnNetworkChange(t *testing.T) {
 	st, _ := e.client.Status(ctx)
 	if !st.Connected || st.Server.Index != 2 {
 		t.Fatalf("after reconnect: %+v", st)
+	}
+}
+
+// Every connect starts a watcher; disconnecting must end it.
+func TestDisconnectEndsWatcher(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"}); err != nil {
+		t.Fatal(err)
+	}
+	for range 5 {
+		if _, err := e.client.Connect(ctx, "2"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.client.Disconnect(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	watchers := func() int {
+		buf := make([]byte, 1<<20)
+		return strings.Count(string(buf[:runtime.Stack(buf, true)]), "restartOnChange")
+	}
+	for i := 0; watchers() > 0; i++ {
+		if i > 200 {
+			t.Fatalf("%d restartOnChange goroutines left", watchers())
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
