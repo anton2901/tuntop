@@ -5,6 +5,13 @@ bugs matter more than usual. Examples: traffic leaking outside the tunnel,
 DNS leaks, a local user gaining root through the daemon socket, credentials
 from subscriptions exposed in logs or files.
 
+## Scope
+
+Known limits that are documented rather than bugs (IPv6 on Linux, direct
+rules inside provider profiles, the open proxy mode, the world-readable
+log) are listed in the README under "Limits and threat model". A report
+that shows a *new* leak, or makes one of those limits worse, is welcome.
+
 ## Supported versions
 
 Only the latest release receives security fixes while the project is in

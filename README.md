@@ -208,6 +208,48 @@ the language.
   passes (the tunnel itself runs as root). The switch protects your
   applications, not system daemons.
 
+## Limits and threat model
+
+What tuntop does **not** protect you from, so you can decide for yourself:
+
+- **IPv6 on Linux.** Only IPv4 is routed into the tunnel. If your machine
+  has working IPv6, connections to IPv6 addresses (and IPv6 DNS servers)
+  bypass the VPN and reveal your real address. With the kill switch on they
+  are blocked instead of leaking (the LAN stays reachable). If you do not
+  need IPv6, disable it for the connection or system-wide. macOS routes
+  IPv6 through the tunnel.
+- **Provider profiles are trusted.** An Xray JSON profile is used as the
+  provider wrote it, including its routing rules. A rule that sends some
+  domains `direct` takes them outside the tunnel **and outside the kill
+  switch**; tuntop does not warn about this. The inbounds are always
+  replaced, so a profile cannot open a listener of its own.
+- **The kill switch has gaps by design.** It starts after the first
+  successful connect and does nothing while the VPN is off. On macOS it
+  cannot tell root processes from the tunnel, so those pass. See "Kill
+  switch details".
+- **Proxy mode is open to local users.** The SOCKS5 and HTTP ports listen
+  on `127.0.0.1` without a password and relay UDP; any local process or
+  user can use your VPN through them. There is no kill switch in this mode.
+- **The service log is world-readable** (`/var/log/tuntop/tuntopd.log`,
+  mode 0644). Links, subscription URL paths, UUIDs, keys and IP addresses
+  are masked, but server and subscription names (usually the provider's
+  domain) and connection times are not. On a multi-user machine, restrict
+  the file yourself (`chmod 640`, then set a group).
+- **Subscription URLs may be plain `http://`.** They are credentials: use
+  `https://`. Redirects to other hosts also receive the device headers.
+- **Your provider sees** the device id (hash), the subscription URL, and
+  everything that leaves the exit server. A subscription fetched through
+  another provider's server (when its domain is blocked) is visible to
+  that provider.
+- **Link limits.** `vmess://` supports `tcp`, `ws`, `httpupgrade`, `grpc`
+  and `xhttp` (not `h2`, `http`, `quic`, `kcp`). `ss://` with `plugin=` is
+  not supported. `allowInsecure` / `insecure=1` is ignored (Xray removed
+  it): servers with self-signed certificates need `pinSHA256`, otherwise
+  they do not connect. Such links are rejected with an error.
+
+Anyone in the socket group (`wheel`, `sudo` or `admin`) can control the
+service, and the service runs as root. Treat that group as root-equivalent.
+
 ## Building
 
 Requires Go 1.27+ and [golangci-lint](https://golangci-lint.run/) v2.

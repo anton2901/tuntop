@@ -46,8 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the status says "connecting".
 - Auto-switch retries while no server answers; removing the active
   subscription turns the VPN off; leaked watcher goroutine per connection.
+- `vless://` and `trojan://` links with `allowInsecure=1` failed to build
+  (Xray rejects the option); it is ignored now, as for `hysteria2://`.
 - Subscription URLs are shown as `scheme://host/...` only; escape and bidi
   characters in provider texts (names, titles, announcements) are removed.
+
+### Documentation
+
+- README: "Limits and threat model" (IPv6 on Linux, direct rules in provider
+  profiles, open proxy mode, log permissions, link limits).
 
 ## [0.2.0] - 2026-10-29
 

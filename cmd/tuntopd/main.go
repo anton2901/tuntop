@@ -3,8 +3,7 @@
 // Command tuntopd is the privileged daemon: it owns the TUN device and
 // the proxy core and serves the tuntop client over a unix socket.
 //
-// For now it only has developer subcommands; the daemon itself is not
-// implemented yet.
+// "run" is the service; sub, socks and tun are developer commands.
 package main
 
 import (
