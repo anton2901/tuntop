@@ -265,3 +265,36 @@ func TestProxyMode(t *testing.T) {
 		}
 	}
 }
+
+// A background reconnect that started before the user pressed "off" must
+// not bring the tunnel back (failover, wake from sleep, network change).
+func TestOffBeatsBackgroundReconnect(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.client.Connect(ctx, "NL"); err != nil {
+		t.Fatal(err)
+	}
+	e.d.mu.Lock()
+	offs, key := e.d.offs, e.d.conn.key
+	e.d.mu.Unlock()
+
+	if _, err := e.client.Disconnect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.d.reconnect(key, offs); err == nil {
+		t.Fatal("reconnect after off succeeded")
+	}
+	if st, _ := e.client.Status(ctx); st.Connected {
+		t.Fatal("reconnected after the user turned the VPN off")
+	}
+	// A reconnect that read the counter after "off" is fine.
+	e.d.mu.Lock()
+	offs = e.d.offs
+	e.d.mu.Unlock()
+	if _, err := e.d.reconnect(key, offs); err != nil {
+		t.Fatal(err)
+	}
+}

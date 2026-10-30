@@ -92,6 +92,9 @@ type Daemon struct {
 	healthFails int
 	// userOff: the user turned the VPN off since start; auto-connect stops.
 	userOff bool
+	// offs counts the user's Disconnect calls; background reconnects
+	// remember it and give up when it moved.
+	offs uint64
 	ks      KillSwitch
 	// ksOn: the kill switch rules are in place.
 	ksOn bool
@@ -364,8 +367,22 @@ func (d *Daemon) resolveLocked(q string) (string, error) {
 // Connect connects to the server matching q (see resolveLocked), replacing
 // any current connection, and remembers it as selected.
 func (d *Daemon) Connect(q string) (api.Status, error) {
+	return d.connect(q, nil)
+}
+
+// reconnect is Connect for background paths (auto-switch, wake from sleep,
+// network change): it does nothing if the user turned the VPN off after
+// offs was read.
+func (d *Daemon) reconnect(q string, offs uint64) (api.Status, error) {
+	return d.connect(q, func() bool { return d.offs == offs })
+}
+
+func (d *Daemon) connect(q string, allowed func() bool) (api.Status, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if allowed != nil && !allowed() {
+		return d.statusLocked(), errors.New("turned off by the user")
+	}
 	key, err := d.resolveLocked(q)
 	if err != nil {
 		return d.statusLocked(), err
@@ -450,6 +467,7 @@ func (d *Daemon) restartOnChange(sess Session, ended <-chan struct{}) {
 	d.mu.Lock()
 	current := d.conn != nil && d.conn.sess == sess
 	var key string
+	offs := d.offs
 	if current {
 		key = d.conn.key // a subscription update may have remapped it
 	}
@@ -459,7 +477,7 @@ func (d *Daemon) restartOnChange(sess Session, ended <-chan struct{}) {
 	}
 	// The session says why it ended (Xray exited, or the network changed).
 	log.Print("tunnel stopped, reconnecting")
-	if _, err := d.Connect(key); err != nil {
+	if _, err := d.reconnect(key, offs); err != nil {
 		log.Printf("reconnect: %v", err)
 	}
 }
@@ -469,6 +487,7 @@ func (d *Daemon) Disconnect() api.Status {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.userOff = true
+	d.offs++
 	if d.conn != nil {
 		d.disconnectLocked()
 		d.emitLocked(api.Event{Kind: api.EventDisconnected})

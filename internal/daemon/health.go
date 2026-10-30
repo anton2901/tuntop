@@ -51,6 +51,7 @@ func (d *Daemon) RunHealth(ctx context.Context) {
 func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 	d.mu.Lock()
 	conn := d.conn
+	offs := d.offs
 	if conn == nil {
 		d.healthFails = 0
 	}
@@ -60,7 +61,7 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 	}
 	if gap > sleepGap {
 		log.Printf("resumed after %s asleep, reconnecting", gap.Round(time.Minute))
-		if _, err := d.Connect(conn.key); err != nil {
+		if _, err := d.reconnect(conn.key, offs); err != nil {
 			log.Printf("reconnect after sleep: %v", err)
 		}
 		return
@@ -71,7 +72,7 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 	cancel()
 
 	if d.recordCheck(conn, dur, err) {
-		d.failover(ctx, conn)
+		d.failover(ctx, conn, offs)
 	}
 }
 
@@ -111,14 +112,14 @@ const failoverTries = 5
 // are skipped; the fastest known go first. If none works, the original
 // server is connected again. It stops as soon as the user connects
 // elsewhere or turns the VPN off.
-func (d *Daemon) failover(ctx context.Context, from *connection) {
+func (d *Daemon) failover(ctx context.Context, from *connection, offs uint64) {
 	cands := d.failoverCandidates(from.key)
 	cur := from.key
 	for _, key := range cands {
 		if !d.stillOn(cur) {
 			return
 		}
-		if _, err := d.Connect(key); err != nil {
+		if _, err := d.reconnect(key, offs); err != nil {
 			log.Printf("auto-switch: %s: %v", d.name(key), err)
 			cur = d.currentKey()
 			continue
@@ -156,7 +157,7 @@ func (d *Daemon) failover(ctx context.Context, from *connection) {
 	}
 	if len(cands) > 0 && d.stillOn(cur) {
 		log.Printf("auto-switch: no working server found, back to %s", d.name(from.key))
-		if _, err := d.Connect(from.key); err != nil {
+		if _, err := d.reconnect(from.key, offs); err != nil {
 			log.Printf("auto-switch: reconnect: %v", err)
 		}
 	}
