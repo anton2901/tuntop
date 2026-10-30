@@ -670,6 +670,7 @@ type row struct {
 	// and count how many the group has.
 	folded bool
 	count  int
+	group  string // group key of a header, for its subscription facts
 }
 
 // serverRows groups servers under headers: favorites, then subscriptions.
@@ -687,7 +688,7 @@ func (m Model) serverRows(vis []api.Server) []row {
 				rows = append(rows, row{header: title, server: i, folded: true, count: m.groupSize(group)})
 				continue
 			}
-			rows = append(rows, row{header: title, server: -1})
+			rows = append(rows, row{header: title, server: -1, group: group})
 		}
 		rows = append(rows, row{server: i})
 	}

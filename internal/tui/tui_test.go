@@ -723,3 +723,13 @@ func TestSortKeepsCursorServer(t *testing.T) {
 		t.Fatal("third s did not restore the order")
 	}
 }
+
+func TestGroupHeaderShowsSubscriptionFacts(t *testing.T) {
+	f := newFake()
+	f.subs[1].Total, f.subs[1].Download = 100<<30, 25<<30
+	m := loaded(t, f)
+	v := m.View()
+	if !strings.Contains(v, "Provider B — traffic 25.0 GB of 100 GB") || !strings.Contains(v, "days left") {
+		t.Fatalf("header facts missing:\n%s", v)
+	}
+}

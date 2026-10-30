@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- TUI: group headers show the subscription's traffic and days left, in the
+  warning color when it ends in under 3 days or 90% of the limit is used.
 - TUI: collapse server groups (`z`, `Z` for all, `Enter` on a collapsed row
   opens it) and sort servers inside groups (`s`: subscription order, latency,
   name); both are remembered. Terminal title shows the connected server.

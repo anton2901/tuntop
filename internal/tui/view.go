@@ -152,12 +152,20 @@ func (m Model) subFacts(s *api.Server) string {
 	if s == nil {
 		return ""
 	}
+	return m.factsLine(s.SubID)
+}
+
+// factsLine renders traffic and expiry of the subscription id, in the
+// warning color when it ends soon or the limit is nearly used.
+func (m Model) factsLine(id string) string {
 	for _, sb := range m.subs {
-		if sb.ID != s.SubID {
+		if sb.ID != id {
 			continue
 		}
 		var f []string
-		if used := sb.Download + sb.Upload; used > 0 || sb.Total > 0 {
+		used := sb.Download + sb.Upload
+		warn := sb.Total > 0 && used*10 >= sb.Total*9
+		if used > 0 || sb.Total > 0 {
 			if sb.Total > 0 {
 				f = append(f, m.t.F("traffic %s of %s", m.t.Size(used), m.t.Size(sb.Total)))
 			} else {
@@ -166,13 +174,14 @@ func (m Model) subFacts(s *api.Server) string {
 		}
 		if !sb.Expire.IsZero() {
 			days := int(time.Until(sb.Expire).Hours() / 24)
-			txt := m.t.F("%d days left", days)
-			if days < 3 {
-				return m.th.dim().Render(strings.Join(f, " · ")+" · ") + m.th.warn().Render(txt)
-			}
-			f = append(f, txt)
+			f = append(f, m.t.F("%d days left", days))
+			warn = warn || days < 3
 		}
-		return m.th.dim().Render(strings.Join(f, " · "))
+		style := m.th.dim()
+		if warn {
+			style = m.th.warn()
+		}
+		return style.Render(strings.Join(f, " · "))
 	}
 	return ""
 }
@@ -305,7 +314,11 @@ func (m Model) serversBody(lay screen, in int) []string {
 	end := min(m.offset+lay.listRows, len(rows))
 	for _, r := range rows[min(m.offset, len(rows)):end] {
 		if r.server < 0 {
-			out = append(out, " "+th.fg(th.BoxTraffic).Bold(true).Render(r.header))
+			head := " " + th.fg(th.BoxTraffic).Bold(true).Render(r.header)
+			if facts := m.factsLine(r.group); facts != "" {
+				head += th.dim().Render(" — ") + facts
+			}
+			out = append(out, fit(head, in))
 			continue
 		}
 		if r.folded {
