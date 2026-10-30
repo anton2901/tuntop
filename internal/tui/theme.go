@@ -2,7 +2,11 @@
 
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Theme is a color scheme. Colors are lipgloss.TerminalColor so a theme can
 // use fixed colors (degraded automatically to 256/16 colors) or adaptive
@@ -14,7 +18,10 @@ type Theme struct {
 	// Hi marks hotkeys (btop's red letters).
 	Hi lipgloss.TerminalColor
 	// SelFg/SelBg draw the row under the cursor.
-	SelFg, SelBg  lipgloss.TerminalColor
+	SelFg, SelBg lipgloss.TerminalColor
+	// SelColors keeps latency colors on the row under the cursor; only for
+	// themes whose SelBg is dark enough for them.
+	SelColors     bool
 	OK, Warn, Err lipgloss.TerminalColor
 	// Box colors of the three panels.
 	BoxStatus, BoxTraffic, BoxMain lipgloss.TerminalColor
@@ -36,7 +43,7 @@ var Themes = []Theme{
 		// Close to btop's default theme.
 		Name: "btop",
 		Fg:   hex("#cccccc"), Dim: hex("#8a8a8a"), Title: hex("#eeeeee"), Hi: hex("#d45454"),
-		SelFg: hex("#eeeeee"), SelBg: hex("#6a2f2f"),
+		SelFg: hex("#eeeeee"), SelBg: hex("#6a2f2f"), SelColors: true,
 		OK: hex("#5fb85f"), Warn: hex("#d7b740"), Err: hex("#e05a5a"),
 		BoxStatus: hex("#3d7b46"), BoxTraffic: hex("#5a4f9a"), BoxMain: hex("#923535"),
 		Down: [3]lipgloss.TerminalColor{hex("#4a7ab8"), hex("#7c5cc4"), hex("#c45cb0")},
@@ -108,4 +115,15 @@ func (t Theme) warn() lipgloss.Style                       { return t.fg(t.Warn)
 func (t Theme) err() lipgloss.Style                        { return t.fg(t.Err) }
 func (t Theme) sel() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(t.SelFg).Background(t.SelBg).Bold(true)
+}
+
+// onSel puts the selection background under an already colored string:
+// every reset in it is followed by the background again.
+func (t Theme) onSel(s string) string {
+	probe := lipgloss.NewStyle().Background(t.SelBg).Render(" ")
+	bg, _, ok := strings.Cut(probe, " ")
+	if !ok || bg == "" {
+		return s
+	}
+	return bg + strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+bg) + "\x1b[0m"
 }

@@ -67,8 +67,17 @@ func (m Model) statusBox(w int) boxSpec {
 		s := m.status.Server
 		since := th.dim().Render(fmtDuration(time.Since(m.status.Since)) + " ")
 		mode := th.dim().Render("TUN")
-		if m.status.KillSwitch {
+		switch {
+		case m.status.Mode == api.ModeProxy:
+			port := m.status.ProxyPort
+			if port == 0 {
+				port = api.DefaultProxyPort
+			}
+			mode = th.dim().Render(fmt.Sprintf("proxy :%d", port))
+		case m.status.KillSwitch:
 			mode += th.dim().Render(" · ") + th.ok().Render(m.t.S("kill switch"))
+		default:
+			mode += th.dim().Render(" · " + m.t.S("no kill switch"))
 		}
 		body = []string{
 			lr(" "+th.ok().Bold(true).Render("● "+m.t.S("ON"))+"  "+mode, since, in),
@@ -150,9 +159,9 @@ func (m Model) subFacts(s *api.Server) string {
 		var f []string
 		if used := sb.Download + sb.Upload; used > 0 || sb.Total > 0 {
 			if sb.Total > 0 {
-				f = append(f, m.t.F("traffic %s of %s", gb(used), gb(sb.Total)))
+				f = append(f, m.t.F("traffic %s of %s", m.t.Size(used), m.t.Size(sb.Total)))
 			} else {
-				f = append(f, m.t.F("traffic %s", gb(used)))
+				f = append(f, m.t.F("traffic %s", m.t.Size(used)))
 			}
 		}
 		if !sb.Expire.IsZero() {
@@ -187,7 +196,7 @@ func (m Model) trafficBox(w int) boxSpec {
 	return boxSpec{
 		w: w, h: topHeight, color: th.BoxTraffic,
 		tabs:     []tabLabel{{key: "2", text: m.t.S("traffic"), active: true}},
-		topRight: th.dim().Render(m.t.Rate(scale)),
+		topRight: th.dim().Render(m.t.S("max") + " " + m.t.Rate(scale)),
 		body:     body,
 	}
 }
@@ -278,7 +287,7 @@ func (m Model) serversBody(lay screen, in int) []string {
 	header := th.title().Render(fmt.Sprintf("%2s%4s %s", "", "#", fit(m.t.S("Name"), cols.name))) +
 		"  " + th.title().Render(padLeft(m.t.S("Type"), cols.kind)) + " "
 	if cols.spark > 0 {
-		header += strings.Repeat(" ", cols.spark+1)
+		header += " " + th.title().Render(padLeft(m.t.S("trend"), cols.spark))
 	}
 	header += th.title().Render(padLeft(m.t.S("Latency"), cols.lat))
 	out := []string{header}
@@ -294,7 +303,7 @@ func (m Model) serversBody(lay screen, in int) []string {
 	end := min(m.offset+lay.listRows, len(rows))
 	for _, r := range rows[min(m.offset, len(rows)):end] {
 		if r.server < 0 {
-			out = append(out, " "+th.fg(th.BoxMain).Bold(true).Render(r.header))
+			out = append(out, " "+th.fg(th.BoxTraffic).Bold(true).Render(r.header))
 			continue
 		}
 		out = append(out, m.serverLine(vis[r.server], cols, r.server == m.cursor, cur, sel, in))
@@ -348,12 +357,23 @@ func (m Model) serverLine(s api.Server, c columns, atCursor bool, cur, sel strin
 	num := fmt.Sprintf("%4d ", s.Index)
 	name := s.Name
 	if s.Favorite && s.SubName != "" {
-		name += " · " + s.SubName
+		// Only the subscription tail gives way to a narrow column.
+		if room := c.name - lipgloss.Width(name) - 3; room >= 2 {
+			name += " · " + ansi.Truncate(s.SubName, room, "…")
+		}
 	}
 	if atCursor {
-		line := ansi.Strip(mark) + num + fit(name, c.name) + "  " + padLeft(kind, c.kind) + " " +
-			ansi.Strip(c.sparkCol(th, s.LatencyHistory)) + padLeft(ansi.Strip(m.latency(s.Latency)), c.lat)
-		return th.sel().Render(fit(line, in))
+		plain := num + fit(name, c.name) + "  " + padLeft(kind, c.kind) + " "
+		if !th.SelColors {
+			line := ansi.Strip(mark) + plain + ansi.Strip(c.sparkCol(th, s.LatencyHistory)) +
+				padLeft(ansi.Strip(m.latency(s.Latency)), c.lat)
+			return th.sel().Render(fit(line, in))
+		}
+		// Colors of the history and latency survive on the selection.
+		rest := c.sparkCol(th, s.LatencyHistory) + padLeft(m.latency(s.Latency), c.lat)
+		used := lipgloss.Width(mark) + lipgloss.Width(plain) + lipgloss.Width(rest)
+		return th.onSel(mark) + th.sel().Render(plain) + th.onSel(rest) +
+			th.sel().Render(strings.Repeat(" ", max(in-used, 0)))
 	}
 	return mark + th.dim().Render(num) + th.text().Render(fit(name, c.name)) + "  " +
 		th.dim().Render(padLeft(kind, c.kind)) + " " + c.sparkCol(th, s.LatencyHistory) + padLeft(m.latency(s.Latency), c.lat)
@@ -416,9 +436,9 @@ func (m Model) subsLines(in int) (lines []string, owners []int) {
 		var facts []string
 		switch {
 		case s.Total > 0:
-			facts = append(facts, m.t.F("traffic %s of %s", gb(s.Download+s.Upload), gb(s.Total)))
+			facts = append(facts, m.t.F("traffic %s of %s", m.t.Size(s.Download+s.Upload), m.t.Size(s.Total)))
 		case s.Download+s.Upload > 0:
-			facts = append(facts, m.t.F("traffic %s (unlimited)", gb(s.Download+s.Upload)))
+			facts = append(facts, m.t.F("traffic %s (unlimited)", m.t.Size(s.Download+s.Upload)))
 		}
 		if !s.Expire.IsZero() {
 			days := int(time.Until(s.Expire).Hours() / 24)
@@ -440,8 +460,6 @@ func (m Model) subsLines(in int) (lines []string, owners []int) {
 	}
 	return lines, owners
 }
-
-func gb(b int64) string { return fmt.Sprintf("%.1f GB", float64(b)/(1<<30)) }
 
 func (m Model) logBody(lay screen, in int) []string {
 	th := m.th

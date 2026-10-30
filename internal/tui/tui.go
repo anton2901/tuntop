@@ -88,6 +88,7 @@ type Model struct {
 	cfg     Config
 	cfgPath string // "" in tests: settings are not saved
 	th      Theme
+	title   string // last window title sent to the terminal
 
 	width, height int
 
@@ -265,7 +266,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.follow = ""
 		}
 		m.clamp()
-		return m, nil
+		return m, m.setTitle()
 	case daemonErrMsg:
 		m.connected, m.daemonErr = false, msg.err.Error()
 		return m, nil
@@ -286,6 +287,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		return m.mouse(msg)
 	case tea.KeyMsg:
+		// A result message stays only until the next key press.
+		if m.busy == "" {
+			m.msg = ""
+		}
 		return m.key(msg)
 	}
 	return m, nil
@@ -677,4 +682,21 @@ func cursorRow(rows []row, cursor int) int {
 func fmtDuration(d time.Duration) string {
 	s := int(d.Seconds())
 	return fmt.Sprintf("%02d:%02d:%02d", s/3600, s/60%60, s%60)
+}
+
+// setTitle updates the terminal title, like btop does: the connected
+// server and its latency, so the tab shows the state without switching.
+func (m *Model) setTitle() tea.Cmd {
+	title := "tuntop"
+	if m.status.Connected && m.status.Server != nil {
+		title += " · ● " + m.status.Server.Name
+		if l := m.status.Server.Latency; l > 0 {
+			title += " · " + m.t.F("%d ms", l)
+		}
+	}
+	if title == m.title {
+		return nil
+	}
+	m.title = title
+	return tea.SetWindowTitle(title)
 }
