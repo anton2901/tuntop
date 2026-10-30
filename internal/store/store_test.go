@@ -54,3 +54,25 @@ func TestRejectsPathTraversal(t *testing.T) {
 		}
 	}
 }
+
+func TestBrokenStateIsSetAside(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{"subscriptions": [`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := Store{Dir: dir}
+	st, err := s.Load()
+	if err != nil || st == nil || len(st.Subscriptions) != 0 {
+		t.Fatalf("Load = %+v, %v", st, err)
+	}
+	broken, _ := filepath.Glob(filepath.Join(dir, "state.json.broken-*"))
+	if len(broken) != 1 {
+		t.Fatalf("broken copies: %v", broken)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "state.json")); !os.IsNotExist(err) {
+		t.Fatal("broken state.json left in place")
+	}
+	if err := s.Save(st); err != nil {
+		t.Fatal(err)
+	}
+}

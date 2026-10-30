@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -90,7 +91,15 @@ func (s Store) Load() (*State, error) {
 	}
 	var st State
 	if err := json.Unmarshal(b, &st); err != nil {
-		return nil, fmt.Errorf("parse state: %w", err)
+		// A service that cannot start is worse than one that starts empty:
+		// keep the broken file for inspection and carry on without it.
+		path := filepath.Join(s.Dir, "state.json")
+		broken := fmt.Sprintf("%s.broken-%d", path, time.Now().Unix())
+		if rerr := os.Rename(path, broken); rerr != nil {
+			return nil, fmt.Errorf("parse state: %w (and could not set it aside: %v)", err, rerr)
+		}
+		log.Printf("state.json is unreadable (%v); moved to %s, starting empty", err, broken)
+		return &State{}, nil
 	}
 	return &st, nil
 }
@@ -151,6 +160,10 @@ func (s Store) write(rel string, b []byte) error {
 		return err
 	}
 	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		return err
 	}

@@ -95,7 +95,7 @@ type Daemon struct {
 	// offs counts the user's Disconnect calls; background reconnects
 	// remember it and give up when it moved.
 	offs uint64
-	ks      KillSwitch
+	ks   KillSwitch
 	// ksOn: the kill switch rules are in place.
 	ksOn bool
 
