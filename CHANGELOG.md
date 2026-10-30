@@ -32,6 +32,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to TUN: SOCKS5 on `127.0.0.1:10808` and HTTP on `:10809`, the system's
   routing and DNS are not touched, no kill switch. TUN stays the default.
 
+### Fixed
+
+- TUI: no panic on terminals 31-33 columns wide; overlays (menu,
+  settings) are clipped to the screen instead of tearing it.
+- A second `tuntopd` is refused instead of undoing the running one's
+  routes and kill switch.
+- "Off" is no longer undone by auto-switch, wake-from-sleep or
+  network-change reconnects, nor by a connect that was still starting.
+- macOS: the kill switch is released even if the pf token file is lost.
+- A damaged `state.json` is set aside and the service starts empty.
+- Connecting no longer makes the TUI show "tuntopd is not reachable";
+  the status says "connecting".
+- Auto-switch retries while no server answers; removing the active
+  subscription turns the VPN off; leaked watcher goroutine per connection.
+- Subscription URLs are shown as `scheme://host/...` only; escape and bidi
+  characters in provider texts (names, titles, announcements) are removed.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added
