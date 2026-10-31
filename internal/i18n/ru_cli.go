@@ -33,7 +33,6 @@ var ruCLI = map[string]string{
          [--version X]   incl. release candidates; --version X exact; --check only shows
          [--check]
   logs [-n N] [-f]     show the service log (secrets masked); -f follows it
-  debug-bundle [file]  save a report for a bug: versions, settings, log, routes, DNS
   version              print version
 
 <server> is a number from "tuntop servers" or part of the server name.
@@ -65,7 +64,6 @@ var ruCLI = map[string]string{
          [--version X]   с кандидатами; --version X — точная версия; --check — только показать
          [--check]
   logs [-n N] [-f]     журнал службы (секреты скрыты); -f — следить
-  debug-bundle [файл]  сохранить отчёт для разбора: версии, настройки, журнал, маршруты, DNS
   version              версия
 
 <сервер> — номер из "tuntop servers" или часть названия сервера.
@@ -129,13 +127,10 @@ var ruCLI = map[string]string{
 	"VPN:     ON as a local proxy: SOCKS5 127.0.0.1:%d, HTTP 127.0.0.1:%d; the rest goes directly\n": "VPN:     ВКЛ. как локальный прокси: SOCKS5 127.0.0.1:%d, HTTP 127.0.0.1:%d; остальное идёт напрямую\n",
 	"upgrade: expected --pre, --check or --version X":                                                "upgrade: допустимы --pre, --check или --version X",
 	"upgrade: %q is not a version like 0.3.0 or 0.3.0-rc.1":                                          "upgrade: %q — не версия вроде 0.3.0 или 0.3.0-rc.1",
-	"logs: expected -n N (lines) or -f (follow)":                                                     "logs: допустимы -n N (строк) или -f (следить)",
-	"(no log file %s; showing what the service keeps in memory)":                                     "(файла журнала %s нет; показываю то, что служба держит в памяти)",
-	"debug-bundle: expected at most one file name":                                                   "debug-bundle: допустимо одно имя файла",
 	"Saved %s (%d KB). Secrets and public addresses are masked; check it before sharing.":            "Сохранено: %s (%d КБ). Секреты и публичные адреса скрыты; проверьте файл перед отправкой.",
-	"tuntop is up to date: %s":                                                                       "tuntop уже последней версии: %s",
-	"available: %s (installed: %s)":                                                                  "доступна: %s (установлена: %s)",
-	"Installing %s (installed: %s). The service restarts: the VPN will be off.":                      "Устанавливаю %s (сейчас %s). Служба перезапустится: VPN будет выключен.",
+	"tuntop is up to date: %s":      "tuntop уже последней версии: %s",
+	"available: %s (installed: %s)": "доступна: %s (установлена: %s)",
+	"Installing %s (installed: %s). The service restarts: the VPN will be off.": "Устанавливаю %s (сейчас %s). Служба перезапустится: VPN будет выключен.",
 	"VPN switched server":            "VPN сменил сервер",
 	"autoswitch: expected on or off": "autoswitch: укажите on или off",
 	"auto-switch: on; when the server stops answering, the service moves to a working one of the same subscription\n": "автопереключение: включено; если сервер перестал отвечать, служба перейдёт на рабочий из той же подписки\n",

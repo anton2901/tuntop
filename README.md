@@ -230,11 +230,6 @@ What tuntop does **not** protect you from, so you can decide for yourself:
 - **Proxy mode is open to local users.** The SOCKS5 and HTTP ports listen
   on `127.0.0.1` without a password and relay UDP; any local process or
   user can use your VPN through them. There is no kill switch in this mode.
-- **The service log is world-readable** (`/var/log/tuntop/tuntopd.log`,
-  mode 0644). Links, subscription URL paths, UUIDs, keys and IP addresses
-  are masked, but server and subscription names (usually the provider's
-  domain) and connection times are not. On a multi-user machine, restrict
-  the file yourself (`chmod 640`, then set a group).
 - **Subscription URLs may be plain `http://`.** They are credentials: use
   `https://`. Redirects to other hosts also receive the device headers.
 - **Your provider sees** the device id (hash), the subscription URL, and

@@ -52,9 +52,3 @@ func pick(linux, darwin string) string {
 	}
 	return linux
 }
-
-// Where the service keeps its log (rotated, secrets masked).
-const (
-	LogDir  = "/var/log/tuntop"
-	LogFile = LogDir + "/tuntopd.log"
-)

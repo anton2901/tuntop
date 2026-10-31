@@ -324,3 +324,82 @@ func TestOffBeatsBackgroundReconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestResumeRetriesUntilNetworkIsBack(t *testing.T) {
+	oldMin, oldMax := retryFirst, retryLast
+	retryFirst, retryLast = time.Millisecond, 5*time.Millisecond
+	defer func() { retryFirst, retryLast = oldMin, oldMax }()
+
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.client.Connect(ctx, "NL"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Woke up with no network: the first attempts fail, the loop goes on.
+	e.tun.mu.Lock()
+	e.tun.fail = errors.New("no default route")
+	e.tun.mu.Unlock()
+	done := make(chan struct{})
+	go func() {
+		e.d.resumed(ctx, 10*time.Minute)
+		close(done)
+	}()
+	time.Sleep(30 * time.Millisecond)
+	select {
+	case <-done:
+		t.Fatal("gave up while the network was down")
+	default:
+	}
+	e.d.mu.Lock()
+	held := !e.d.quietUntil.IsZero()
+	e.d.mu.Unlock()
+	if !held {
+		t.Fatal("updates are not held back after a wake-up")
+	}
+
+	e.tun.mu.Lock()
+	e.tun.fail = nil // network is back
+	e.tun.mu.Unlock()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no reconnect after the network came back")
+	}
+	if st, _ := e.client.Status(ctx); !st.Connected {
+		t.Fatalf("not connected: %+v", st)
+	}
+}
+
+func TestResumeRetryStopsWhenTurnedOff(t *testing.T) {
+	oldMin, oldMax := retryFirst, retryLast
+	retryFirst, retryLast = time.Millisecond, 5*time.Millisecond
+	defer func() { retryFirst, retryLast = oldMin, oldMax }()
+
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.client.AddSubscription(ctx, api.AddSubscriptionRequest{URL: "https://a.example.com/s/a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.client.Connect(ctx, "NL"); err != nil {
+		t.Fatal(err)
+	}
+	e.tun.mu.Lock()
+	e.tun.fail = errors.New("no default route")
+	e.tun.mu.Unlock()
+	done := make(chan struct{})
+	go func() {
+		e.d.resumed(ctx, 10*time.Minute)
+		close(done)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	e.d.Disconnect()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("retry loop ignores the user's off")
+	}
+}

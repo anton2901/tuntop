@@ -16,8 +16,12 @@ type Config struct {
 }
 
 // Log controls Xray logging. Level is one of debug, info, warning, error, none.
+//
+// Access is always "none": by default Xray writes every destination of every
+// connection to the console, i.e. the user's browsing history into the log.
 type Log struct {
-	Level string `json:"loglevel,omitempty"`
+	Access string `json:"access,omitempty"`
+	Level  string `json:"loglevel,omitempty"`
 }
 
 // Inbound is a listener accepting local connections.
@@ -181,7 +185,7 @@ func SOCKSConfig(host string, port uint16, out Outbound, logLevel string) Config
 		out.Tag = "proxy"
 	}
 	return Config{
-		Log:       &Log{Level: logLevel},
+		Log:       &Log{Access: "none", Level: logLevel},
 		Inbounds:  []Inbound{socksInbound(host, port)},
 		Outbounds: []Outbound{out},
 	}

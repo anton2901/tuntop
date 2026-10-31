@@ -125,7 +125,7 @@ func WithTUN(raw []byte, o TUNOptions) ([]byte, error) {
 		pinHosts(doc, outs, o.Hosts)
 	}
 
-	doc["log"] = Log{Level: o.LogLevel}
+	doc["log"] = Log{Access: "none", Level: o.LogLevel}
 	enableStats(doc)
 	delete(doc, "remarks")
 	delete(doc, "meta")

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/anton2901/tuntop/internal/daemon"
-	"github.com/anton2901/tuntop/internal/diag"
 	"github.com/anton2901/tuntop/internal/netcfg"
 	"github.com/anton2901/tuntop/internal/paths"
 	"github.com/anton2901/tuntop/internal/store"
@@ -39,14 +38,7 @@ func runDaemon(args []string) error {
 	}
 	log.SetFlags(0) // journald adds timestamps
 	ring := daemon.NewLogRing(500)
-	out := io.MultiWriter(os.Stderr, ring)
-	if f, err := diag.OpenRotating(paths.LogFile, 5<<20, 4); err != nil {
-		log.Printf("log file %s: %v", paths.LogFile, err)
-	} else {
-		defer func() { _ = f.Close() }()
-		out = io.MultiWriter(out, diag.Stamped{W: f})
-	}
-	log.SetOutput(out)
+	log.SetOutput(io.MultiWriter(os.Stderr, ring))
 	log.Printf("tuntopd %s starting (%s/%s, %s)", version.String(), runtime.GOOS, runtime.GOARCH, runtime.Version())
 	if dir := xray.SetupAssets(); dir != "" {
 		log.Printf("geo databases: %s", dir)

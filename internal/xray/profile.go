@@ -44,7 +44,7 @@ func withInbounds(raw []byte, inbounds []Inbound, logLevel string) ([]byte, erro
 		return nil, errors.New("profile has no outbounds")
 	}
 	doc["inbounds"] = inbounds
-	doc["log"] = Log{Level: logLevel}
+	doc["log"] = Log{Access: "none", Level: logLevel}
 	enableStats(doc)
 	// With domainStrategy IPIfNonMatch Xray resolves destinations itself,
 	// through the profile's DNS: same UDP-over-balancer stall as under TUN.

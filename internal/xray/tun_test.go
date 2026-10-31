@@ -250,3 +250,19 @@ func TestWithLocalProxyBuilds(t *testing.T) {
 		t.Fatalf("xray rejected the config: %v\n%s", err, raw)
 	}
 }
+
+func TestAccessLogIsOff(t *testing.T) {
+	raw, err := WithTUN([]byte(providerProfile), TUNOptions{Name: "tuntop0", MTU: 1500, Bypass: map[string]any{"mark": 2023}, LogLevel: "warning"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Log struct{ Access string }
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Log.Access != "none" {
+		t.Fatalf("access log = %q: destinations would land in the service log", doc.Log.Access)
+	}
+}

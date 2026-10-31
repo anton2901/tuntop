@@ -24,16 +24,25 @@ const (
 	healthFailures = 3
 	// sleepGap between two checks means a sleep, not a slow tick.
 	sleepGap = 3 * healthEvery
+	// wakeEvery is how often the clock is compared with the wall time to
+	// notice a wake-up; wakeGap beyond it means the machine slept. A tick
+	// fires within wakeEvery of the wake-up, so the stale tunnel is replaced
+	// in seconds, and sleeps from ~wakeGap on are noticed.
+	wakeEvery = 5 * time.Second
+	wakeGap   = 20 * time.Second
+	// quietAfterWake keeps background downloads off the network while the
+	// tunnel is being replaced.
+	quietAfterWake = time.Minute
 )
 
-// RunHealth checks the tunnel until ctx ends.
+// RunHealth checks the tunnel until ctx ends, and restarts it after a sleep.
 func (d *Daemon) RunHealth(ctx context.Context) {
 	if d.check == nil {
 		return
 	}
-	t := time.NewTicker(healthEvery)
+	t := time.NewTicker(wakeEvery)
 	defer t.Stop()
-	last := time.Now()
+	last, lastCheck := time.Now(), time.Now()
 	for {
 		select {
 		case <-ctx.Done():
@@ -42,13 +51,25 @@ func (d *Daemon) RunHealth(ctx context.Context) {
 			// Wall clock: the monotonic one stops while the machine sleeps.
 			gap := now.Round(0).Sub(last.Round(0))
 			last = now
-			d.healthCheck(ctx, gap)
+			if gap > wakeGap {
+				lastCheck = now
+				d.resumed(ctx, gap)
+				continue
+			}
+			if now.Round(0).Sub(lastCheck.Round(0)) >= healthEvery {
+				lastCheck = now
+				d.healthCheck(ctx, healthEvery)
+			}
 		}
 	}
 }
 
 // healthCheck runs one check; gap is the time since the previous one.
 func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
+	if gap > sleepGap {
+		d.resumed(ctx, gap)
+		return
+	}
 	d.mu.Lock()
 	conn := d.conn
 	offs := d.offs
@@ -59,13 +80,6 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 	if conn == nil {
 		return
 	}
-	if gap > sleepGap {
-		log.Printf("resumed after %s asleep, reconnecting", gap.Round(time.Minute))
-		if _, err := d.reconnect(conn.key, offs); err != nil {
-			log.Printf("reconnect after sleep: %v", err)
-		}
-		return
-	}
 
 	cctx, cancel := context.WithTimeout(ctx, healthTimeout)
 	dur, err := d.checkSession(cctx, conn.sess)
@@ -73,6 +87,59 @@ func (d *Daemon) healthCheck(ctx context.Context, gap time.Duration) {
 
 	if d.recordCheck(conn, dur, err) {
 		d.failover(ctx, conn, offs)
+	}
+}
+
+// resumed restarts the tunnel after a sleep: its connections are stale.
+func (d *Daemon) resumed(ctx context.Context, gap time.Duration) {
+	d.mu.Lock()
+	conn := d.conn
+	offs := d.offs
+	d.quietUntil = time.Now().Add(quietAfterWake)
+	d.mu.Unlock()
+	if conn == nil {
+		return
+	}
+	log.Printf("resumed after %s asleep, reconnecting", gap.Round(time.Second))
+	d.reconnectRetry(ctx, conn.key, offs, "after sleep")
+}
+
+// Pauses between attempts to bring the tunnel back: the network often
+// is not there yet after a wake-up or a move to another network.
+var (
+	retryFirst = 2 * time.Second
+	retryLast  = 30 * time.Second
+)
+
+// reconnectRetry reconnects to key and, while that fails, tries again with
+// a growing pause. It gives up when the user turns the VPN off (offs moved),
+// something else connected meanwhile, or ctx ends. The kill switch stays on
+// during the retries: the traffic must not leave outside the tunnel.
+func (d *Daemon) reconnectRetry(ctx context.Context, key string, offs uint64, why string) {
+	if !d.retrying.CompareAndSwap(false, true) {
+		return // another loop is already at it
+	}
+	defer d.retrying.Store(false)
+	pause := retryFirst
+	for {
+		_, err := d.reconnect(key, offs)
+		if err == nil {
+			return
+		}
+		d.mu.Lock()
+		stop := d.offs != offs || d.conn != nil
+		d.quietUntil = time.Now().Add(quietAfterWake)
+		d.mu.Unlock()
+		log.Printf("reconnect %s: %v (retry in %s)", why, err, pause)
+		if stop {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(pause):
+		}
+		pause = min(pause*2, retryLast)
 	}
 }
 

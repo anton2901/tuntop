@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/anton2901/tuntop/internal/api"
@@ -91,6 +92,8 @@ type Daemon struct {
 	check  TunnelChecker
 	// healthFails counts failed tunnel checks in a row.
 	healthFails int
+	// retrying: a reconnectRetry loop is running.
+	retrying atomic.Bool
 	// userOff: the user turned the VPN off since start; auto-connect stops.
 	userOff bool
 	// connMu serializes connects; connecting is true while one is starting
@@ -110,6 +113,9 @@ type Daemon struct {
 	conn   *connection
 	// lastErr is the last connect failure.
 	lastErr string
+	// quietUntil: no background downloads before it (the tunnel is being
+	// replaced after a sleep).
+	quietUntil time.Time
 	// updating serializes subscription downloads.
 	updating sync.Mutex
 	// latency holds recent probe results per server key (ms, -1 failed),
@@ -514,9 +520,7 @@ func (d *Daemon) restartOnChange(sess Session, ended <-chan struct{}) {
 	}
 	// The session says why it ended (Xray exited, or the network changed).
 	log.Print("tunnel stopped, reconnecting")
-	if _, err := d.reconnect(key, offs); err != nil {
-		log.Printf("reconnect: %v", err)
-	}
+	d.reconnectRetry(context.Background(), key, offs, "after tunnel stop")
 }
 
 // Disconnect stops the tunnel; normal routing returns.
@@ -1209,6 +1213,12 @@ func (d *Daemon) RunUpdater(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+		}
+		d.mu.Lock()
+		quiet := d.connecting || time.Now().Before(d.quietUntil)
+		d.mu.Unlock()
+		if quiet {
+			continue // try again on the next tick
 		}
 		for _, id := range d.dueSubscriptions(time.Now()) {
 			if _, err := d.Update(ctx, id); err != nil {
