@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-31
+
 ### Added
 
 - TUI: group headers show the subscription's traffic and days left, in the
@@ -14,13 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TUI: collapse server groups (`z`, `Z` for all, `Enter` on a collapsed row
   opens it) and sort servers inside groups (`s`: subscription order, latency,
   name); both are remembered. Terminal title shows the connected server.
-- Log file `/var/log/tuntop/tuntopd.log` (5 MB x 4, rotated) with
-  timestamps; share links, subscription URL paths, UUIDs, keys and public
-  IP addresses are masked (an address keeps two parts and a short hash).
-  More events: connect timing and failures, subscription updates, latency
-  test summary, settings changes. `tuntop logs [-n N] [-f]` shows it.
-- `tuntop debug-bundle [file]`: one masked report with versions,
-  settings, the log tail and the routing and DNS state, for bug reports.
 - Share links `vmess://`, `trojan://`, `ss://` (SIP002 and legacy) and
   `hysteria2://` (`hy2://`; password auth, `sni`, `pinSHA256`, Salamander
   obfs). `insecure=1` is ignored: Xray no longer accepts `allowInsecure`.
@@ -53,13 +48,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subscription turns the VPN off; leaked watcher goroutine per connection.
 - `vless://` and `trojan://` links with `allowInsecure=1` failed to build
   (Xray rejects the option); it is ignored now, as for `hysteria2://`.
+- After a sleep the tunnel is restored within seconds, not up to a minute
+  later: the wake-up is noticed every 5 s, sleeps of 20 s and longer count.
+- A reconnect that fails (no network yet after waking, moving to another
+  network, Xray gone) is retried with a growing pause until it works or the
+  VPN is turned off; before, the VPN stayed down and the kill switch kept
+  blocking until "off" and "on" by hand.
+- Background subscription updates wait a minute after a wake-up instead of
+  racing the tunnel being replaced.
 - Subscription URLs are shown as `scheme://host/...` only; escape and bidi
   characters in provider texts (names, titles, announcements) are removed.
+
+### Security
+
+- Xray's access log is off: it wrote every destination of every connection
+  to the service output (the world-readable `/var/log/tuntopd.log` on macOS,
+  the journal on Linux), i.e. the browsing history.
 
 ### Documentation
 
 - README: "Limits and threat model" (IPv6 on Linux, direct rules in provider
-  profiles, open proxy mode, log permissions, link limits).
+  profiles, open proxy mode, link limits).
 
 ## [0.2.0] - 2026-10-29
 
@@ -112,6 +121,7 @@ First release. Linux (systemd) and macOS 13+ (Apple Silicon and Intel).
 - Installers and uninstallers for Linux (systemd units, geo databases
   downloaded when missing) and macOS (LaunchDaemon and LaunchAgent).
 
-[Unreleased]: https://github.com/anton2901/tuntop/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/anton2901/tuntop/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/anton2901/tuntop/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/anton2901/tuntop/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/anton2901/tuntop/releases/tag/v0.1.0
